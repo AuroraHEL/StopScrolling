@@ -15,7 +15,7 @@
 
 **Test result:** Pixel 8 Android 17.0 Chrome: 1 min 51 s
 
-<img src="images/SP01-01.png" width="500"><img src="images/SP01-02.png" width="500">
+<img src="images/SP01-01.png" width="400"><img src="images/SP01-02.png" width="400">
 
 ### 2. Can we detect the foreground app almost in real time?
 
@@ -25,7 +25,7 @@
 
 **Test result:** The event was there at the same second.
 
-<img src="images/SP01-03.png" width="500">
+<img src="images/SP01-03.png" width="400">
 
 ### 3. How can we block an app?
 
@@ -58,7 +58,7 @@ Android has no simple "block this app" function for normal apps. These are the o
 
 **Test result:** Number of apps found with and without the `<queries>` element: 20 with, 4 without.
 
-<img src="images/SP01-04.png" width="500"><img src="images/SP01-05.png" width="500">
+<img src="images/SP01-04.png" width="400"><img src="images/SP01-05.png" width="400">
 
 ### Effects on the backlog
 
