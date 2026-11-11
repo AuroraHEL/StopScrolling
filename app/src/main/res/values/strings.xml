@@ -2,4 +2,14 @@
     <string name="app_name">StopScrolling</string>
     <string name="new_group">New group</string>
     <string name="no_groups_yet">No group yet. Create your first one!</string>
+    <string name="group_name">Group name</string>
+    <string name="group_name_error">Please enter a name</string>
+    <string name="select_apps">Select the apps to regulate</string>
+    <string name="select_apps_error">Select at least one app</string>
+    <string name="save">Save</string>
+    <string name="back">Back</string>
+    <plurals name="apps_count">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
 </resources>
