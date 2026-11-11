@@ -23,5 +23,6 @@
 
 ----
 
-[Spike SP-01: Usage Access Report](docs/spike-sp01-note.md)
+## Spike SP-01 Report:
+[Usage Access Report](docs/spike-sp01-note.md)
 
