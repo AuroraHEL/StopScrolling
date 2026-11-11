@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">StopScrolling</string>
+    <string name="new_group">New group</string>
+    <string name="no_groups_yet">No group yet. Create your first one!</string>
 </resources>
