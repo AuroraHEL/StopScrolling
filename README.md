@@ -21,3 +21,7 @@
 * 🧠 **Mental Challenges:** Solve a math quiz or explore a new educational topic.
 * 🏃 **Physical Activity:** Complete a movement session (e.g., 10 minutes of walking/steps tracked via internal device sensors).
 
+----
+
+[Spike SP-01: Usage Access Report](docs/spike-sp01-note.md)
+
