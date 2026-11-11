@@ -14,8 +14,10 @@
 - The user can turn the permission off at any time, so the app must check it every time it starts.
 
 **Test result:** Pixel 8 Android 17.0 Chrome: 1 min 51 s
-![Spike test](docs/images/SP01-01.png)
-![Spike test](docs/images/SP01-02.png)
+
+![Spike test](images/SP01-01.png)
+
+![Spike test](images/SP01-02.png)
 
 ### 2. Can we detect the foreground app almost in real time?
 
@@ -24,7 +26,8 @@
 - For the real feature we will need a **foreground service** (with a notification that the user can see) that checks the events about every second. A normal background task is not reliable for this.
 
 **Test result:** The event was there at the same second.
-![Spike test](docs/images/SP01-03.png)
+
+![Spike test](images/SP01-03.png)
 
 ### 3. How can we block an app?
 
@@ -57,8 +60,9 @@ Android has no simple "block this app" function for normal apps. These are the o
 
 **Test result:** Number of apps found with and without the `<queries>` element: 20 with, 4 without.
 
-![Spike test](docs/images/SP01-04.png)
-![Spike test](docs/images/SP01-05.png)
+![Spike test](images/SP01-04.png)
+
+![Spike test](images/SP01-05.png)
 
 ### Effects on the backlog
 
