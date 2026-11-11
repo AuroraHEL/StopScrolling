@@ -9,32 +9,36 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
+import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
 
-/**
- * Home screen of the app.
- * For now it only shows the "New group" button and an empty state.
- * The list of saved groups will be added with the ViewModel (next PR).
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DashboardScreen(onNewGroupClick: () -> Unit) {
+fun DashboardScreen(
+    groups: List<GroupWithApps>,
+    onNewGroupClick: () -> Unit
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }
     ) { padding ->
@@ -55,12 +59,31 @@ fun DashboardScreen(onNewGroupClick: () -> Unit) {
 
             Spacer(Modifier.height(16.dp))
 
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = stringResource(R.string.no_groups_yet),
-                    textAlign = TextAlign.Center
-                )
+            if (groups.isEmpty()) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = stringResource(R.string.no_groups_yet),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(groups, key = { it.group.id }) { GroupCard(it) }
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun GroupCard(item: GroupWithApps) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Text(item.group.name, style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = pluralStringResource(R.plurals.apps_count, item.apps.size, item.apps.size),
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -68,5 +91,5 @@ fun DashboardScreen(onNewGroupClick: () -> Unit) {
 @Preview(showBackground = true)
 @Composable
 private fun DashboardScreenPreview() {
-    StopScrollingTheme { DashboardScreen(onNewGroupClick = {}) }
+    StopScrollingTheme { DashboardScreen(groups = emptyList(), onNewGroupClick = {}) }
 }
