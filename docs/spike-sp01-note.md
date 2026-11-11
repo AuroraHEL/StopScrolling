@@ -17,7 +17,7 @@
 
 <img src="images/SP01-01.png" width="500">
 
-![Spike test](images/SP01-02.png)
+<img src="images/SP01-02.png" width="500">
 
 ### 2. Can we detect the foreground app almost in real time?
 
@@ -27,7 +27,7 @@
 
 **Test result:** The event was there at the same second.
 
-![Spike test](images/SP01-03.png)
+<img src="images/SP01-03.png" width="500">
 
 ### 3. How can we block an app?
 
@@ -60,9 +60,9 @@ Android has no simple "block this app" function for normal apps. These are the o
 
 **Test result:** Number of apps found with and without the `<queries>` element: 20 with, 4 without.
 
-![Spike test](images/SP01-04.png)
+<img src="images/SP01-04.png" width="500">
 
-![Spike test](images/SP01-05.png)
+<img src="images/SP01-05.png" width="500">
 
 ### Effects on the backlog
 
