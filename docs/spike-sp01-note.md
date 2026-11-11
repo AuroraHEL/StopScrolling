@@ -15,7 +15,7 @@
 
 **Test result:** Pixel 8 Android 17.0 Chrome: 1 min 51 s
 
-<img src="images/SP01-01.png" width="300">
+<img src="images/SP01-01.png" width="500">
 
 ![Spike test](images/SP01-02.png)
 
