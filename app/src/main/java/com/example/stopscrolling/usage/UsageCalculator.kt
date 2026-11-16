@@ -6,7 +6,6 @@ package com.example.stopscrolling.usage
  * We use our own class instead of UsageEvents.Event so that the calculation
  * can be unit tested without Android.
  */
-
 data class ForegroundEvent(
     val packageName: String,
     val timestamp: Long,
@@ -18,11 +17,11 @@ object UsageCalculator {
 
     /*
      * Sums the foreground time (in milliseconds) of every app.
+     * Only the time between [startMillis] (start of the day) and [endMillis] (now) is counted.
      *
-     * [events] must be sorted by time and must only contain events between
-     * [startMillis] (start of the day) and [endMillis] (now).
+     * [events] must be sorted by time. They can also start a few hours before [startMillis]:
+     * in this way an app that was opened before midnight is counted from midnight.
      */
-
     fun sumForegroundTime(
         events: List<ForegroundEvent>,
         startMillis: Long,
@@ -31,35 +30,46 @@ object UsageCalculator {
         val totals = mutableMapOf<String, Long>()
         // For each app: the moment when it came to the foreground (only while it is open)
         val foregroundSince = mutableMapOf<String, Long>()
-        // Apps that already had at least one event in this time window
-        val seenPackages = mutableSetOf<String>()
 
         for (event in events) {
             val pkg = event.packageName
-            val isFirstEventOfApp = seenPackages.add(pkg)
 
             if (event.isResumed) {
-                // Keep the first start if the app is already marked as open
-                if (!foregroundSince.containsKey(pkg)) {
-                    foregroundSince[pkg] = event.timestamp
-                }
+                // If the app is already marked as open, we missed the end of the old session.
+                // We do not count the old session and we start again from this event,
+                // so we never count more time than the real one.
+                foregroundSince[pkg] = event.timestamp
             } else {
-                var since = foregroundSince.remove(pkg)
-                if (since == null && isFirstEventOfApp) {
-                    // The app was already open at the start of the day (opened before midnight)
-                    since = startMillis
-                }
+                // A "background" event without a "foreground" event before it is ignored,
+                // because we do not know when the app was opened
+                val since = foregroundSince.remove(pkg)
                 if (since != null) {
-                    totals[pkg] = (totals[pkg] ?: 0L) + (event.timestamp - since)
+                    addTime(totals, pkg, since, event.timestamp, startMillis, endMillis)
                 }
             }
         }
 
         // Apps that are still in the foreground right now
         for ((pkg, since) in foregroundSince) {
-            totals[pkg] = (totals[pkg] ?: 0L) + (endMillis - since)
+            addTime(totals, pkg, since, endMillis, startMillis, endMillis)
         }
 
         return totals
+    }
+
+    // Adds the time between [from] and [to], but only the part that is inside the day
+    private fun addTime(
+        totals: MutableMap<String, Long>,
+        pkg: String,
+        from: Long,
+        to: Long,
+        dayStart: Long,
+        dayEnd: Long
+    ) {
+        val clippedFrom = maxOf(from, dayStart)
+        val clippedTo = minOf(to, dayEnd)
+        if (clippedTo > clippedFrom) {
+            totals[pkg] = (totals[pkg] ?: 0L) + (clippedTo - clippedFrom)
+        }
     }
 }

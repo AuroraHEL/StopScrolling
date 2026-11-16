@@ -65,12 +65,38 @@ class UsageCalculatorTest {
 
     @Test
     fun appOpenedBeforeMidnight_isCountedFromStartOfDay() {
-        // The first event of the day is "went to background": it was open since midnight
-        val events = listOf(ForegroundEvent("app.a", 5_000, false))
+        // The app came to the foreground 5 s before the start of the day
+        // and went to the background 5 s after it: only the 5 s of today are counted
+        val events = listOf(
+            ForegroundEvent("app.a", -5_000L, true),
+            ForegroundEvent("app.a", 5_000L, false)
+        )
 
         val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
 
         assertEquals(5_000L, result["app.a"])
+    }
+
+    @Test
+    fun backgroundEventWithoutForegroundEvent_isIgnored() {
+        // We do not know when the app was opened, so nothing is counted
+        val events = listOf(ForegroundEvent("app.a", 5_000, false))
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun sessionBeforeTheStartOfTheDay_isNotCounted() {
+        val events = listOf(
+            ForegroundEvent("app.a", -20_000L, true),
+            ForegroundEvent("app.a", -10_000L, false)
+        )
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        assertTrue(result.isEmpty())
     }
 
     @Test
@@ -80,6 +106,21 @@ class UsageCalculatorTest {
             ForegroundEvent("app.a", 10_000, true),
             ForegroundEvent("app.a", 20_000, false),
             ForegroundEvent("app.a", 30_000, false)
+        )
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        assertEquals(10_000L, result["app.a"])
+    }
+
+    @Test
+    fun twoForegroundEventsInARow_restartTheSession() {
+        // The first session has no end event: it is not counted,
+        // and the time is counted again from the second "foreground" event
+        val events = listOf(
+            ForegroundEvent("app.a", 10_000, true),
+            ForegroundEvent("app.a", 50_000, true),
+            ForegroundEvent("app.a", 60_000, false)
         )
 
         val result = UsageCalculator.sumForegroundTime(events, dayStart, now)

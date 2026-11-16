@@ -4,6 +4,9 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 
+// How many hours before midnight we read the events (6 hours)
+private const val LOOKBACK_MILLIS = 6 * 60 * 60 * 1000L
+
 /*
  * Reads how long each app was used today, using UsageStatsManager.
  *
@@ -13,7 +16,6 @@ import android.content.Context
  * Call these functions from a background thread (for example Dispatchers.IO),
  * not from the main thread, to avoid ANRs.
  */
-
 class UsageTracker(context: Context) {
 
     private val usageStatsManager =
@@ -23,10 +25,11 @@ class UsageTracker(context: Context) {
      * Foreground time of every app today (since 00:00 local time), in milliseconds.
      * The key of the map is the package name.
      */
-
     fun getTodayUsagePerPackage(nowMillis: Long = System.currentTimeMillis()): Map<String, Long> {
         val startOfDay = DayBoundary.startOfDayMillis(nowMillis)
-        val events = readForegroundEvents(startOfDay, nowMillis)
+        // We also read some hours before midnight, to know if an app was already open.
+        // The calculator counts only the time of today.
+        val events = readForegroundEvents(startOfDay - LOOKBACK_MILLIS, nowMillis)
         return UsageCalculator.sumForegroundTime(events, startOfDay, nowMillis)
     }
 
@@ -53,7 +56,10 @@ class UsageTracker(context: Context) {
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED ->
                     result.add(ForegroundEvent(event.packageName, event.timeStamp, true))
-                UsageEvents.Event.ACTIVITY_PAUSED ->
+                // Sometimes Android sends only "stopped" and no "paused",
+                // so both events end the foreground session
+                UsageEvents.Event.ACTIVITY_PAUSED,
+                UsageEvents.Event.ACTIVITY_STOPPED ->
                     result.add(ForegroundEvent(event.packageName, event.timeStamp, false))
             }
         }
