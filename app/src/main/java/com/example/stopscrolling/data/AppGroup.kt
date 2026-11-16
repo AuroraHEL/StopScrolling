@@ -7,5 +7,7 @@ import androidx.room.PrimaryKey
 data class AppGroup(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
-    val name: String
+    val name: String,
+    val timeLimit: Int = 0,
+    val limitType: String = "HARD"
 )

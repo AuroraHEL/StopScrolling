@@ -75,4 +75,5 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.compose.material.icons.core)
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
 }
