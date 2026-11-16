@@ -18,10 +18,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+
 data class NewGroupUiState(
     val name: String = "",
     val apps: List<InstalledApp> = emptyList(),
     val selectedPackages: Set<String> = emptySet(),
+
+    // US-12/17: Limit settings
+    val timeLimit: Int = 0,
+    val limitType: String = "HARD",
+
     val isLoading: Boolean = true,
     val nameError: Boolean = false,
     val appsError: Boolean = false,
@@ -65,16 +71,47 @@ class NewGroupViewModel(
         }
     }
 
+
+    fun onTimeLimitChange(minutes: Int) {
+        if (minutes >= 0) {
+            _uiState.update {
+                it.copy(timeLimit = minutes)
+            }
+        }
+    }
+
+    fun onLimitTypeChange(type: String) {
+        if (type == "HARD" || type == "SOFT") {
+            _uiState.update {
+                it.copy(limitType = type)
+            }
+        }
+    }
+
+
     fun onSaveClick() {
         val state = _uiState.value
         val nameInvalid = state.name.isBlank()
         val appsInvalid = state.selectedPackages.isEmpty()
+
         if (nameInvalid || appsInvalid) {
-            _uiState.update { it.copy(nameError = nameInvalid, appsError = appsInvalid) }
+            _uiState.update {
+                it.copy(
+                    nameError = nameInvalid,
+                    appsError = appsInvalid
+                )
+            }
             return
         }
+
         viewModelScope.launch {
-            groupRepository.createGroup(state.name, state.selectedPackages.toList())
+            groupRepository.createGroup(
+                name = state.name,
+                packageNames = state.selectedPackages.toList(),
+                timeLimit = state.timeLimit,
+                limitType = state.limitType
+            )
+
             _uiState.update { it.copy(saved = true) }
         }
     }
