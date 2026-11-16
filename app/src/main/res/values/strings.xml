@@ -8,6 +8,9 @@
     <string name="select_apps_error">Select at least one app</string>
     <string name="save">Save</string>
     <string name="back">Back</string>
+    <string name="overlay_permission_rationale">StopScrolling needs permission to display over other apps so it can show the lock screen when your time limit is up.</string>
+    <string name="grant_overlay_permission">Grant Overlay Permission</string>
+    <string name="overlay_permission_denied">Overlay permission required. Please allow StopScrolling to display over other apps.</string>
     <plurals name="apps_count">
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
