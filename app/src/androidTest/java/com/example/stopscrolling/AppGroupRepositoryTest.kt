@@ -4,6 +4,7 @@ import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.stopscrolling.data.AppDatabase
+import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.AppGroupRepositoryImpl
 import kotlinx.coroutines.flow.first
@@ -37,7 +38,7 @@ class AppGroupRepositoryTest {
                 name = "Social Media",
                 packageNames = listOf("com.instagram.android"),
                 timeLimit = 60,
-                limitType = "SOFT"
+                limitType = LimitType.SOFT
             )
 
             val groups = repository.observeGroups().first()
@@ -45,7 +46,7 @@ class AppGroupRepositoryTest {
             assertEquals(1, groups.size)
             assertEquals("Social Media", groups[0].group.name)
             assertEquals(60, groups[0].group.timeLimit)
-            assertEquals("SOFT", groups[0].group.limitType)
+            assertEquals(LimitType.SOFT, groups[0].group.limitType)
             assertEquals(1, groups[0].apps.size)
             assertEquals(
                 "com.instagram.android",
@@ -74,7 +75,7 @@ class AppGroupRepositoryTest {
 
             assertEquals(1, groups.size)
             assertEquals(0, groups[0].group.timeLimit)
-            assertEquals("HARD", groups[0].group.limitType)
+            assertEquals(LimitType.HARD, groups[0].group.limitType)
         } finally {
             db.close()
         }
@@ -93,7 +94,7 @@ class AppGroupRepositoryTest {
                     name = "Games",
                     packageNames = emptyList(),
                     timeLimit = -10,
-                    limitType = "HARD"
+                    limitType = LimitType.HARD
                 )
             } catch (e: IllegalArgumentException) {
                 exceptionThrown = true
@@ -114,35 +115,90 @@ class AppGroupRepositoryTest {
     }
 
     @Test
-    fun createGroup_rejectsInvalidLimitType() = runBlocking {
+    fun updateLimit_updatesExistingGroup() = runBlocking {
         val db = createDatabase()
 
         try {
             val repository = AppGroupRepositoryImpl(db)
+
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf("com.instagram.android"),
+                timeLimit = 60,
+                limitType = LimitType.HARD
+            )
+
+            val updated = repository.updateLimit(
+                groupId = groupId,
+                timeLimit = 90,
+                limitType = LimitType.SOFT
+            )
+
+            assertTrue(updated)
+
+            val groups = repository.observeGroups().first()
+            assertEquals(1, groups.size)
+            assertEquals(groupId, groups[0].group.id)
+            assertEquals(90, groups[0].group.timeLimit)
+            assertEquals(LimitType.SOFT, groups[0].group.limitType)
+            assertEquals(1, groups[0].apps.size)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun updateLimit_rejectsNegativeTimeLimit() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val groupId = repository.createGroup(
+                name = "Games",
+                packageNames = emptyList(),
+                timeLimit = 30
+            )
+
             var exceptionThrown = false
 
             try {
-                repository.createGroup(
-                    name = "Games",
-                    packageNames = emptyList(),
-                    timeLimit = 60,
-                    limitType = "INVALID"
+                repository.updateLimit(
+                    groupId = groupId,
+                    timeLimit = -10,
+                    limitType = LimitType.HARD
                 )
             } catch (e: IllegalArgumentException) {
                 exceptionThrown = true
             }
 
-            assertTrue(
-                "Invalid limit type should throw IllegalArgumentException",
-                exceptionThrown
-            )
+            assertTrue(exceptionThrown)
 
-            assertEquals(
-                0,
-                repository.observeGroups().first().size
-            )
+            val groups = repository.observeGroups().first()
+            assertEquals(30, groups[0].group.timeLimit)
         } finally {
             db.close()
         }
     }
+
+    @Test
+    fun updateLimit_returnsFalseForNonexistentGroup() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val updated = repository.updateLimit(
+                groupId = 999,
+                timeLimit = 60,
+                limitType = LimitType.SOFT
+            )
+
+            assertEquals(false, updated)
+            assertEquals(0, repository.observeGroups().first().size)
+        } finally {
+            db.close()
+        }
+    }
+
 }
