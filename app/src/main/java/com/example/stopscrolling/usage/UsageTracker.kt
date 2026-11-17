@@ -45,8 +45,12 @@ class UsageTracker(context: Context) {
         return packageNames.sumOf { usagePerPackage[it] ?: 0L }
     }
 
-    // Reads the system events and keeps only "app to foreground" and "app to background"
-    private fun readForegroundEvents(startMillis: Long, endMillis: Long): List<ForegroundEvent> {
+    /*
+     * Reads the system events between [startMillis] and [endMillis] and keeps only
+     * "app to foreground" and "app to background". The events are sorted by time.
+     * Also used by the monitor service.
+     */
+    fun readForegroundEvents(startMillis: Long, endMillis: Long): List<ForegroundEvent> {
         val result = mutableListOf<ForegroundEvent>()
         val usageEvents = usageStatsManager.queryEvents(startMillis, endMillis)
         val event = UsageEvents.Event()
