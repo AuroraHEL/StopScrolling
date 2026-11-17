@@ -11,5 +11,5 @@ data class AppGroup(
     // Time limit in minutes.
     // 0 means no limit is set.
     val timeLimit: Int = 0,
-    val limitType: String = "HARD"
+    val limitType: LimitType = LimitType.HARD
 )
