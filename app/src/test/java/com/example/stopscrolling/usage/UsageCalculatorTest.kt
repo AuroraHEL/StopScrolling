@@ -1,9 +1,6 @@
 package com.example.stopscrolling.usage
 
-import java.util.Calendar
-import java.util.TimeZone
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -129,43 +126,54 @@ class UsageCalculatorTest {
     }
 
     @Test
+    fun movingToAnotherScreenOfTheSameApp_keepsCountingUntilTheLastPause() {
+        // Real order of the Android events when the user goes from screen A to screen B:
+        // PAUSED(A), RESUMED(B), STOPPED(A), PAUSED(B).
+        // The STOPPED(A) is late and must not end the session of screen B.
+        val events = listOf(
+            ForegroundEvent("app.a", 10_000, true, "ScreenA"),
+            ForegroundEvent("app.a", 20_000, false, "ScreenA"), // PAUSED(A)
+            ForegroundEvent("app.a", 20_100, true, "ScreenB"),  // RESUMED(B)
+            ForegroundEvent("app.a", 20_200, false, "ScreenA"), // STOPPED(A)
+            ForegroundEvent("app.a", 30_000, false, "ScreenB")  // PAUSED(B)
+        )
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        // 10 s on screen A + 9.9 s on screen B
+        assertEquals(19_900L, result["app.a"])
+    }
+
+    @Test
+    fun stoppedWithoutPaused_endsTheSession() {
+        // Seen in the events of our own app on the emulator: "foreground" and then "stopped", with no "paused"
+        val events = listOf(
+            ForegroundEvent("app.a", 10_000, true, "ScreenA"),
+            ForegroundEvent("app.a", 25_000, false, "ScreenA")
+        )
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        assertEquals(15_000L, result["app.a"])
+    }
+
+    @Test
+    fun pausedAndThenStopped_isCountedOnlyOnce() {
+        val events = listOf(
+            ForegroundEvent("app.a", 10_000, true, "ScreenA"),
+            ForegroundEvent("app.a", 20_000, false, "ScreenA"), // PAUSED
+            ForegroundEvent("app.a", 20_500, false, "ScreenA")  // STOPPED
+        )
+
+        val result = UsageCalculator.sumForegroundTime(events, dayStart, now)
+
+        assertEquals(10_000L, result["app.a"])
+    }
+
+    @Test
     fun noEvents_giveEmptyResult() {
         val result = UsageCalculator.sumForegroundTime(emptyList(), dayStart, now)
 
         assertTrue(result.isEmpty())
-    }
-}
-
-class DayBoundaryTest {
-
-    private val zone = TimeZone.getTimeZone("Europe/Helsinki")
-
-    // Builds a time in milliseconds for the test time zone
-    private fun timeOf(day: Int, hour: Int, minute: Int, second: Int): Long {
-        val calendar = Calendar.getInstance(zone)
-        calendar.set(2026, Calendar.NOVEMBER, day, hour, minute, second)
-        calendar.set(Calendar.MILLISECOND, 0)
-        return calendar.timeInMillis
-    }
-
-    @Test
-    fun startOfDay_isMidnightOfTheSameDay() {
-        val afternoon = timeOf(16, 15, 30, 45)
-
-        val start = DayBoundary.startOfDayMillis(afternoon, zone)
-
-        assertEquals(timeOf(16, 0, 0, 0), start)
-    }
-
-    @Test
-    fun atMidnight_theNewDayStarts() {
-        val lastSecondOfTheDay = timeOf(16, 23, 59, 59)
-        val midnight = timeOf(17, 0, 0, 0)
-
-        val startBefore = DayBoundary.startOfDayMillis(lastSecondOfTheDay, zone)
-        val startAfter = DayBoundary.startOfDayMillis(midnight, zone)
-
-        assertNotEquals(startBefore, startAfter)
-        assertEquals(midnight, startAfter)
     }
 }

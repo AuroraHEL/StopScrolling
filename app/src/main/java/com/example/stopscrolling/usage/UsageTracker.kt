@@ -59,12 +59,17 @@ class UsageTracker(context: Context) {
             usageEvents.getNextEvent(event)
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED ->
-                    result.add(ForegroundEvent(event.packageName, event.timeStamp, true))
-                // Sometimes Android sends only "stopped" and no "paused",
-                // so both events end the foreground session
+                    result.add(
+                        ForegroundEvent(event.packageName, event.timeStamp, true, event.className ?: "")
+                    )
+                // Sometimes Android sends only "stopped" and no "paused", so both events can
+                // end a session. The calculator uses the class name to ignore late events
+                // of a screen that is not the open one.
                 UsageEvents.Event.ACTIVITY_PAUSED,
                 UsageEvents.Event.ACTIVITY_STOPPED ->
-                    result.add(ForegroundEvent(event.packageName, event.timeStamp, false))
+                    result.add(
+                        ForegroundEvent(event.packageName, event.timeStamp, false, event.className ?: "")
+                    )
             }
         }
         return result
