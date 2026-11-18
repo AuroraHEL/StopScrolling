@@ -8,6 +8,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.example.stopscrolling.data.LimitType
 
 class RoomRegulatedGroupLookupTest {
 
@@ -25,7 +26,10 @@ class RoomRegulatedGroupLookupTest {
 
         val result = lookup.findGroupsOf("app.b")
 
-        assertEquals(listOf(RegulatedGroup(1, listOf("app.a", "app.b"))), result)
+        assertEquals(
+            listOf(RegulatedGroup(1, listOf("app.a", "app.b"), name = "Social")),
+            result
+        )
     }
 
     @Test
@@ -46,5 +50,20 @@ class RoomRegulatedGroupLookupTest {
         val result = lookup.findGroupsOf("app.a")
 
         assertEquals(listOf(1, 2), result.map { it.groupId })
+    }
+
+    @Test
+    fun groupCarriesItsLimitSettings() = runBlocking {
+        val soft = GroupWithApps(
+            group = AppGroup(id = 3, name = "Video", timeLimit = 45, limitType = LimitType.SOFT),
+            apps = listOf(GroupApp(id = 300, groupId = 3, packageName = "app.v"))
+        )
+        val lookup = RoomRegulatedGroupLookup { flowOf(listOf(soft)) }
+
+        val result = lookup.findGroupsOf("app.v").single()
+
+        assertEquals("Video", result.name)
+        assertEquals(45, result.timeLimitMinutes)
+        assertEquals(LimitType.SOFT, result.limitType)
     }
 }

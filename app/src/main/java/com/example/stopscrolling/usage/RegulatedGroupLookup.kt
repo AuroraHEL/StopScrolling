@@ -3,12 +3,18 @@ package com.example.stopscrolling.usage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import com.example.stopscrolling.data.LimitType
 
 // ---------- Groups ----------
 
-/* A regulated group: its id and the package names of all the apps inside it. */
-data class RegulatedGroup(val groupId: Int, val packageNames: List<String>)
-
+/** A regulated group: its apps and its limit settings. */
+data class RegulatedGroup(
+    val groupId: Int,
+    val packageNames: List<String>,
+    val name: String = "",
+    val timeLimitMinutes: Int = 0, // 0 = no limit
+    val limitType: LimitType = LimitType.HARD
+)
 /* Finds the regulated groups of an app. */
 interface RegulatedGroupLookup {
 

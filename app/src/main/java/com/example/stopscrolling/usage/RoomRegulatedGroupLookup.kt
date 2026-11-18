@@ -25,7 +25,10 @@ class RoomRegulatedGroupLookup(
             .map { item ->
                 RegulatedGroup(
                     groupId = item.group.id,
-                    packageNames = item.apps.map { it.packageName }
+                    packageNames = item.apps.map { it.packageName },
+                    name = item.group.name,
+                    timeLimitMinutes = item.group.timeLimit,
+                    limitType = item.group.limitType
                 )
             }
     }
