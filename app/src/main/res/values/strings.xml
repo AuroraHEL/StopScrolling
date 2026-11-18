@@ -18,4 +18,10 @@
     <string name="overlay_go_home">Go to home screen</string>
     <string name="overlay_hard_title">Limit reached</string>
     <string name="overlay_hard_message">You reached your daily limit of %1$s for %2$s. These apps are blocked until tomorrow.</string>
+    <string name="overlay_soft_title">Soft limit reached</string>
+    <string name="overlay_soft_message">You used %1$s today in %2$s, and your limit was %3$s. Do you really want to keep going?</string>
+    <plurals name="overlay_soft_extend">
+        <item quantity="one">Get %1$d more minute</item>
+        <item quantity="other">Get %1$d more minutes</item>
+    </plurals>
 </resources>
