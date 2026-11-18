@@ -38,6 +38,12 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+    <string name="duration_minutes">%1$d min</string>
+    <string name="duration_hours">%1$d h</string>
+    <string name="duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="overlay_go_home">Go to home screen</string>
+    <string name="overlay_hard_title">Limit reached</string>
+    <string name="overlay_hard_message">You reached your daily limit of %1$s for %2$s. These apps are blocked until tomorrow.</string>
 
     <plurals name="minutes_count">
         <item quantity="one">%d minute</item>
