@@ -1,7 +1,8 @@
 package com.example.stopscrolling.usage
 
 /*
- * A simplified usage event: an app came to the foreground or went to the background.
+ * A simplified usage event: a screen (activity) of an app came to the foreground
+ * or went to the background.
  *
  * We use our own class instead of UsageEvents.Event so that the calculation
  * can be unit tested without Android.
@@ -9,8 +10,10 @@ package com.example.stopscrolling.usage
 data class ForegroundEvent(
     val packageName: String,
     val timestamp: Long,
-    // true = the app came to the foreground, false = the app went to the background
-    val isResumed: Boolean
+    // true = the screen came to the foreground, false = the screen went to the background
+    val isResumed: Boolean,
+    // Name of the screen (activity) of the event
+    val className: String = ""
 )
 
 object UsageCalculator {
@@ -28,23 +31,28 @@ object UsageCalculator {
         endMillis: Long
     ): Map<String, Long> {
         val totals = mutableMapOf<String, Long>()
-        // For each app: the moment when it came to the foreground (only while it is open)
+        // For each app: when its current session started (only while the app is open)
         val foregroundSince = mutableMapOf<String, Long>()
+        // For each app: the screen (activity) that is open now
+        val currentScreen = mutableMapOf<String, String>()
 
         for (event in events) {
             val pkg = event.packageName
 
             if (event.isResumed) {
-                // If the app is already marked as open, we missed the end of the old session.
-                // We do not count the old session and we start again from this event,
-                // so we never count more time than the real one.
+                // A screen of the app is visible now. If the app was already marked as open,
+                // we missed the end of the old session: we do not count it and start again.
                 foregroundSince[pkg] = event.timestamp
+                currentScreen[pkg] = event.className
             } else {
-                // A "background" event without a "foreground" event before it is ignored,
-                // because we do not know when the app was opened
-                val since = foregroundSince.remove(pkg)
-                if (since != null) {
+                // An end event counts only if it is about the screen that is open now.
+                // Example: PAUSED(A), RESUMED(B), STOPPED(A): the STOPPED(A) comes late
+                // and must not end the session of screen B.
+                val since = foregroundSince[pkg]
+                if (since != null && currentScreen[pkg] == event.className) {
                     addTime(totals, pkg, since, event.timestamp, startMillis, endMillis)
+                    foregroundSince.remove(pkg)
+                    currentScreen.remove(pkg)
                 }
             }
         }
