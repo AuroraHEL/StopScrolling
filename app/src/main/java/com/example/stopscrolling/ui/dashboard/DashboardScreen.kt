@@ -175,16 +175,23 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
-            val limitText =
-                if (item.group.timeLimit == 0) {
-                    stringResource(R.string.no_limit)
-                } else {
-                    pluralStringResource(
-                        R.plurals.minutes_count,
-                        item.group.timeLimit,
-                        item.group.timeLimit
-                    )
-                }
+            val limitText = when (item.group.timeLimit) {
+                0 -> stringResource(R.string.no_limit)
+                60 -> stringResource(R.string.one_hour)
+                90 -> stringResource(R.string.one_hour_thirty_minutes)
+                120 -> stringResource(R.string.two_hours)
+                180 -> stringResource(R.string.three_hours)
+                240 -> stringResource(R.string.four_hours)
+                300 -> stringResource(R.string.five_hours)
+                360 -> stringResource(R.string.six_hours)
+                480 -> stringResource(R.string.eight_hours)
+                600 -> stringResource(R.string.ten_hours)
+                else -> pluralStringResource(
+                    R.plurals.minutes_count,
+                    item.group.timeLimit,
+                    item.group.timeLimit
+                )
+            }
 
             val typeText =
                 if (item.group.limitType == LimitType.HARD) {
@@ -247,15 +254,23 @@ private fun EditLimitDialog(
 
     val timeOptions = listOf(
         0 to stringResource(R.string.no_limit),
-        15 to pluralStringResource(
-            R.plurals.minutes_count, 15, 15
-        ),
-        30 to pluralStringResource(
-            R.plurals.minutes_count, 30, 30
-        ),
+        1 to pluralStringResource(R.plurals.minutes_count, 1, 1),
+        2 to pluralStringResource(R.plurals.minutes_count, 2, 2),
+        3 to pluralStringResource(R.plurals.minutes_count, 3, 3),
+        5 to pluralStringResource(R.plurals.minutes_count, 5, 5),
+        10 to pluralStringResource(R.plurals.minutes_count, 10, 10),
+        15 to pluralStringResource(R.plurals.minutes_count, 15, 15),
+        30 to pluralStringResource(R.plurals.minutes_count, 30, 30),
+        45 to pluralStringResource(R.plurals.minutes_count, 45, 45),
         60 to stringResource(R.string.one_hour),
+        90 to stringResource(R.string.one_hour_thirty_minutes),
         120 to stringResource(R.string.two_hours),
-        180 to stringResource(R.string.three_hours)
+        180 to stringResource(R.string.three_hours),
+        240 to stringResource(R.string.four_hours),
+        300 to stringResource(R.string.five_hours),
+        360 to stringResource(R.string.six_hours),
+        480 to stringResource(R.string.eight_hours),
+        600 to stringResource(R.string.ten_hours)
     )
 
     AlertDialog(
@@ -286,9 +301,7 @@ private fun EditLimitDialog(
                         enabled = !isSaving,
                         label = {
                             Text(
-                                stringResource(
-                                    R.string.daily_time_limit
-                                )
+                                stringResource(R.string.daily_time_limit)
                             )
                         },
                         trailingIcon = {
@@ -298,8 +311,7 @@ private fun EditLimitDialog(
                         },
                         modifier = Modifier
                             .menuAnchor(
-                                ExposedDropdownMenuAnchorType
-                                    .PrimaryNotEditable
+                                ExposedDropdownMenuAnchorType.PrimaryNotEditable
                             )
                             .fillMaxWidth()
                     )
@@ -312,9 +324,7 @@ private fun EditLimitDialog(
                     ) {
                         timeOptions.forEach { (minutes, label) ->
                             DropdownMenuItem(
-                                text = {
-                                    Text(label)
-                                },
+                                text = { Text(label) },
                                 onClick = {
                                     selectedMinutes = minutes
                                     expanded = false
@@ -341,9 +351,7 @@ private fun EditLimitDialog(
                         },
                         enabled = !isSaving,
                         label = {
-                            Text(
-                                stringResource(R.string.hard_limit)
-                            )
+                            Text(stringResource(R.string.hard_limit))
                         }
                     )
 
@@ -354,9 +362,7 @@ private fun EditLimitDialog(
                         },
                         enabled = !isSaving,
                         label = {
-                            Text(
-                                stringResource(R.string.soft_limit)
-                            )
+                            Text(stringResource(R.string.soft_limit))
                         }
                     )
                 }
@@ -365,9 +371,7 @@ private fun EditLimitDialog(
                     Spacer(Modifier.height(8.dp))
 
                     Text(
-                        text = stringResource(
-                            R.string.limit_update_error
-                        ),
+                        text = stringResource(R.string.limit_update_error),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )

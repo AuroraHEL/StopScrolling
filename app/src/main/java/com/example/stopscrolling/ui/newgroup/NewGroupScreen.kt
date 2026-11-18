@@ -68,15 +68,23 @@ fun NewGroupScreen(
 
     val timeOptions = listOf(
         0 to stringResource(R.string.no_limit),
-        15 to pluralStringResource(
-            R.plurals.minutes_count, 15, 15
-        ),
-        30 to pluralStringResource(
-            R.plurals.minutes_count, 30, 30
-        ),
+        1 to pluralStringResource(R.plurals.minutes_count, 1, 1),
+        2 to pluralStringResource(R.plurals.minutes_count, 2, 2),
+        3 to pluralStringResource(R.plurals.minutes_count, 3, 3),
+        5 to pluralStringResource(R.plurals.minutes_count, 5, 5),
+        10 to pluralStringResource(R.plurals.minutes_count, 10, 10),
+        15 to pluralStringResource(R.plurals.minutes_count, 15, 15),
+        30 to pluralStringResource(R.plurals.minutes_count, 30, 30),
+        45 to pluralStringResource(R.plurals.minutes_count, 45, 45),
         60 to stringResource(R.string.one_hour),
+        90 to stringResource(R.string.one_hour_thirty_minutes),
         120 to stringResource(R.string.two_hours),
-        180 to stringResource(R.string.three_hours)
+        180 to stringResource(R.string.three_hours),
+        240 to stringResource(R.string.four_hours),
+        300 to stringResource(R.string.five_hours),
+        360 to stringResource(R.string.six_hours),
+        480 to stringResource(R.string.eight_hours),
+        600 to stringResource(R.string.ten_hours)
     )
 
     Scaffold(
@@ -89,8 +97,7 @@ fun NewGroupScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription =
-                                stringResource(R.string.back)
+                            contentDescription = stringResource(R.string.back)
                         )
                     }
                 }
@@ -107,14 +114,12 @@ fun NewGroupScreen(
             }
         }
     ) { padding ->
-
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(horizontal = 16.dp)
                 .fillMaxSize()
         ) {
-
             // Group Name
             OutlinedTextField(
                 value = state.name,
@@ -126,11 +131,7 @@ fun NewGroupScreen(
                 isError = state.nameError,
                 supportingText = {
                     if (state.nameError) {
-                        Text(
-                            stringResource(
-                                R.string.group_name_error
-                            )
-                        )
+                        Text(stringResource(R.string.group_name_error))
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -170,8 +171,7 @@ fun NewGroupScreen(
                     },
                     modifier = Modifier
                         .menuAnchor(
-                            ExposedDropdownMenuAnchorType
-                                .PrimaryNotEditable
+                            ExposedDropdownMenuAnchorType.PrimaryNotEditable
                         )
                         .fillMaxWidth()
                 )
@@ -205,8 +205,7 @@ fun NewGroupScreen(
             Spacer(Modifier.height(8.dp))
 
             Row(
-                horizontalArrangement =
-                    Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
                     selected = state.limitType == LimitType.HARD,
@@ -239,9 +238,7 @@ fun NewGroupScreen(
 
             if (state.appsError) {
                 Text(
-                    text = stringResource(
-                        R.string.select_apps_error
-                    ),
+                    text = stringResource(R.string.select_apps_error),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
@@ -264,12 +261,9 @@ fun NewGroupScreen(
                     ) { app ->
                         AppCheckRow(
                             app = app,
-                            checked = app.packageName
-                                    in state.selectedPackages,
+                            checked = app.packageName in state.selectedPackages,
                             onToggle = {
-                                viewModel.onAppToggle(
-                                    app.packageName
-                                )
+                                viewModel.onAppToggle(app.packageName)
                             }
                         )
                     }

@@ -17,8 +17,14 @@
     <string name="time_limit">Time Limit</string>
     <string name="no_limit">No limit</string>
     <string name="one_hour">1 hour</string>
+    <string name="one_hour_thirty_minutes">1 hour 30 minutes</string>
     <string name="two_hours">2 hours</string>
     <string name="three_hours">3 hours</string>
+    <string name="four_hours">4 hours</string>
+    <string name="five_hours">5 hours</string>
+    <string name="six_hours">6 hours</string>
+    <string name="eight_hours">8 hours</string>
+    <string name="ten_hours">10 hours</string>
     <string name="limit_type">Limit Type</string>
     <string name="hard_limit">Hard Limit</string>
     <string name="soft_limit">Soft Limit</string>
@@ -38,6 +44,7 @@
         <item quantity="one">%d app</item>
         <item quantity="other">%d apps</item>
     </plurals>
+
     <string name="duration_minutes">%1$d min</string>
     <string name="duration_hours">%1$d h</string>
     <string name="duration_hours_minutes">%1$d h %2$d min</string>
@@ -46,10 +53,12 @@
     <string name="overlay_hard_message">You reached your daily limit of %1$s for %2$s. These apps are blocked until tomorrow.</string>
     <string name="overlay_soft_title">Soft limit reached</string>
     <string name="overlay_soft_message">You used %1$s today in %2$s, and your limit was %3$s. Do you really want to keep going?</string>
+
     <plurals name="overlay_soft_extend">
         <item quantity="one">Get %1$d more minute</item>
         <item quantity="other">Get %1$d more minutes</item>
     </plurals>
+
     <plurals name="minutes_count">
         <item quantity="one">%d minute</item>
         <item quantity="other">%d minutes</item>
