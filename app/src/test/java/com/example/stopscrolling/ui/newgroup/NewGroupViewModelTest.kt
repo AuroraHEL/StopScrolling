@@ -1,6 +1,7 @@
 package com.example.stopscrolling.ui.newgroup
 
 import com.example.stopscrolling.data.GroupWithApps
+import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import kotlinx.coroutines.Dispatchers
@@ -53,18 +54,21 @@ class NewGroupViewModelTest {
     @Test
     fun initialState_hasEmptyNameAndSelection() =
         runTest(testDispatcher) {
-
             assertEquals("", viewModel.uiState.value.name)
             assertTrue(
                 viewModel.uiState.value.selectedPackages.isEmpty()
             )
             assertFalse(viewModel.uiState.value.saved)
+            assertEquals(0, viewModel.uiState.value.timeLimit)
+            assertEquals(
+                LimitType.HARD,
+                viewModel.uiState.value.limitType
+            )
         }
 
     @Test
     fun onNameChange_updatesName() =
         runTest(testDispatcher) {
-
             viewModel.onNameChange("Social Media")
 
             assertEquals(
@@ -76,7 +80,6 @@ class NewGroupViewModelTest {
     @Test
     fun onAppToggle_selectsAndDeselectsApp() =
         runTest(testDispatcher) {
-
             viewModel.onAppToggle("com.instagram.android")
 
             assertTrue(
@@ -95,7 +98,6 @@ class NewGroupViewModelTest {
     @Test
     fun onSaveClick_withEmptyName_showsError() =
         runTest(testDispatcher) {
-
             viewModel.onAppToggle("com.instagram.android")
             viewModel.onSaveClick()
 
@@ -107,7 +109,6 @@ class NewGroupViewModelTest {
     @Test
     fun onSaveClick_withNoApps_showsError() =
         runTest(testDispatcher) {
-
             viewModel.onNameChange("Social Media")
             viewModel.onSaveClick()
 
@@ -119,7 +120,6 @@ class NewGroupViewModelTest {
     @Test
     fun onSaveClick_withValidData_savesGroup() =
         runTest(testDispatcher) {
-
             viewModel.onNameChange("Social Media")
             viewModel.onAppToggle("com.instagram.android")
 
@@ -138,6 +138,46 @@ class NewGroupViewModelTest {
             assertTrue(viewModel.uiState.value.saved)
         }
 
+    // US-12/17: Verify selected limit settings are saved
+    @Test
+    fun onSaveClick_withLimitSettings_passesValuesToRepository() =
+        runTest(testDispatcher) {
+            viewModel.onNameChange("Social Media")
+            viewModel.onAppToggle("com.instagram.android")
+            viewModel.onTimeLimitChange(60)
+            viewModel.onLimitTypeChange(LimitType.SOFT)
+
+            viewModel.onSaveClick()
+            runCurrent()
+
+            assertEquals(1, groupRepository.saveCount)
+            assertEquals(60, groupRepository.savedTimeLimit)
+            assertEquals(
+                LimitType.SOFT,
+                groupRepository.savedLimitType
+            )
+            assertTrue(viewModel.uiState.value.saved)
+        }
+
+    // US-12/17: Verify "No limit" is saved as 0
+    @Test
+    fun onSaveClick_withNoLimit_passesDefaultValues() =
+        runTest(testDispatcher) {
+            viewModel.onNameChange("Games")
+            viewModel.onAppToggle("com.example.game")
+
+            viewModel.onSaveClick()
+            runCurrent()
+
+            assertEquals(1, groupRepository.saveCount)
+            assertEquals(0, groupRepository.savedTimeLimit)
+            assertEquals(
+                LimitType.HARD,
+                groupRepository.savedLimitType
+            )
+            assertTrue(viewModel.uiState.value.saved)
+        }
+
     private class FakeGroupRepository : AppGroupRepository {
 
         private val groupsFlow =
@@ -146,17 +186,31 @@ class NewGroupViewModelTest {
         var saveCount = 0
         var savedName = ""
         var savedPackages = emptyList<String>()
+        var savedTimeLimit = -1
+        var savedLimitType: LimitType? = null
 
         override fun observeGroups() = groupsFlow
 
         override suspend fun createGroup(
             name: String,
-            packageNames: List<String>
+            packageNames: List<String>,
+            timeLimit: Int,
+            limitType: LimitType
         ): Int {
             saveCount++
             savedName = name
             savedPackages = packageNames
+            savedTimeLimit = timeLimit
+            savedLimitType = limitType
             return 1
+        }
+
+        override suspend fun updateLimit(
+            groupId: Int,
+            timeLimit: Int,
+            limitType: LimitType
+        ): Boolean {
+            return false
         }
     }
 }
