@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -48,6 +49,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.InstalledApp
+import com.example.stopscrolling.data.LimitType
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,12 +67,16 @@ fun NewGroupScreen(
     var expanded by remember { mutableStateOf(false) }
 
     val timeOptions = listOf(
-        0 to "No limit",
-        15 to "15 minutes",
-        30 to "30 minutes",
-        60 to "1 hour",
-        120 to "2 hours",
-        180 to "3 hours"
+        0 to stringResource(R.string.no_limit),
+        15 to pluralStringResource(
+            R.plurals.minutes_count, 15, 15
+        ),
+        30 to pluralStringResource(
+            R.plurals.minutes_count, 30, 30
+        ),
+        60 to stringResource(R.string.one_hour),
+        120 to stringResource(R.string.two_hours),
+        180 to stringResource(R.string.three_hours)
     )
 
     Scaffold(
@@ -134,7 +140,7 @@ fun NewGroupScreen(
 
             // US-12/17: Time Limit Picker
             Text(
-                text = "Daily Time Limit",
+                text = stringResource(R.string.daily_time_limit),
                 style = MaterialTheme.typography.titleSmall
             )
 
@@ -147,11 +153,16 @@ fun NewGroupScreen(
                 OutlinedTextField(
                     value = timeOptions.find {
                         it.first == state.timeLimit
-                    }?.second
-                        ?: "${state.timeLimit} minutes",
+                    }?.second ?: pluralStringResource(
+                        R.plurals.minutes_count,
+                        state.timeLimit,
+                        state.timeLimit
+                    ),
                     onValueChange = {},
                     readOnly = true,
-                    label = { Text("Time Limit") },
+                    label = {
+                        Text(stringResource(R.string.time_limit))
+                    },
                     trailingIcon = {
                         ExposedDropdownMenuDefaults.TrailingIcon(
                             expanded = expanded
@@ -187,7 +198,7 @@ fun NewGroupScreen(
 
             // US-12/17: Hard / Soft Limit
             Text(
-                text = "Limit Type",
+                text = stringResource(R.string.limit_type),
                 style = MaterialTheme.typography.titleSmall
             )
 
@@ -198,19 +209,23 @@ fun NewGroupScreen(
                     Arrangement.spacedBy(8.dp)
             ) {
                 FilterChip(
-                    selected = state.limitType == "HARD",
+                    selected = state.limitType == LimitType.HARD,
                     onClick = {
-                        viewModel.onLimitTypeChange("HARD")
+                        viewModel.onLimitTypeChange(LimitType.HARD)
                     },
-                    label = { Text("Hard Limit") }
+                    label = {
+                        Text(stringResource(R.string.hard_limit))
+                    }
                 )
 
                 FilterChip(
-                    selected = state.limitType == "SOFT",
+                    selected = state.limitType == LimitType.SOFT,
                     onClick = {
-                        viewModel.onLimitTypeChange("SOFT")
+                        viewModel.onLimitTypeChange(LimitType.SOFT)
                     },
-                    label = { Text("Soft Limit") }
+                    label = {
+                        Text(stringResource(R.string.soft_limit))
+                    }
                 )
             }
 
