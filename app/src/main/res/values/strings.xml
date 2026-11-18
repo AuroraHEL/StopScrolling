@@ -54,4 +54,5 @@
         <item quantity="one">%d minute</item>
         <item quantity="other">%d minutes</item>
     </plurals>
+    <string name="overlay_challenge_placeholder">The math challenge is coming soon.</string>
 </resources>
