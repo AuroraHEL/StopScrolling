@@ -5,6 +5,7 @@ import com.example.stopscrolling.data.AppDatabase
 import com.example.stopscrolling.data.AppGroup
 import com.example.stopscrolling.data.GroupApp
 import com.example.stopscrolling.data.GroupWithApps
+import com.example.stopscrolling.data.LimitType
 import kotlinx.coroutines.flow.Flow
 
 interface AppGroupRepository {
@@ -15,8 +16,14 @@ interface AppGroupRepository {
         name: String,
         packageNames: List<String>,
         timeLimit: Int = 0,
-        limitType: String = "HARD"
+        limitType: LimitType = LimitType.HARD
     ): Int
+
+    suspend fun updateLimit(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType
+    ): Boolean
 }
 
 class AppGroupRepositoryImpl(
@@ -32,15 +39,11 @@ class AppGroupRepositoryImpl(
         name: String,
         packageNames: List<String>,
         timeLimit: Int,
-        limitType: String
+        limitType: LimitType
     ): Int = database.withTransaction {
 
         require(timeLimit >= 0) {
             "Time limit cannot be negative"
-        }
-
-        require(limitType == "HARD" || limitType == "SOFT") {
-            "Invalid limit type"
         }
 
         val groupId = dao.insertGroup(
@@ -62,4 +65,20 @@ class AppGroupRepositoryImpl(
 
         groupId
     }
+    override suspend fun updateLimit(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType
+    ): Boolean {
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
+
+        return dao.updateLimit(
+            groupId = groupId,
+            timeLimit = timeLimit,
+            limitType = limitType
+        ) > 0
+    }
+
 }
