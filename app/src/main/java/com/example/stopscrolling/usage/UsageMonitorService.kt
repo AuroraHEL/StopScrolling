@@ -224,21 +224,31 @@ class UsageMonitorService : Service() {
         shownRequest = null
     }
 
-    private fun goToHomeScreen() {
+    /* Opens the home screen. Returns false if Android refused. */
+    private fun goToHomeScreen(): Boolean {
         val home = Intent(Intent.ACTION_MAIN)
             .addCategory(Intent.CATEGORY_HOME)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        startActivity(home)
+        return try {
+            startActivity(home)
+            true
+        } catch (e: RuntimeException) { // ActivityNotFoundException, SecurityException...
+            Log.e(TAG, "Cannot open the home screen", e)
+            false
+        }
     }
 
     // Called by the overlay buttons. post{} so that the view is not removed during its own click.
     private fun onOverlayGoHome() {
         mainHandler.post {
-            // Forget the open app: otherwise the next check shows the overlay again
-            // before the launcher event arrives
-            currentGroups = emptyList()
-            hideOverlayNow()
-            goToHomeScreen()
+            // If the home screen cannot be opened, the overlay stays: the user must not stay
+            // in the app without a block.
+            if (goToHomeScreen()) {
+                // Forget the open app: otherwise the next check shows the overlay again
+                // before the launcher event arrives
+                currentGroups = emptyList()
+                hideOverlayNow()
+            }
         }
     }
 
