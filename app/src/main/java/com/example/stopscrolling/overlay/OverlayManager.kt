@@ -20,6 +20,11 @@ import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
+import android.view.KeyEvent
+import android.view.View
+import android.window.OnBackInvokedCallback
+import android.window.OnBackInvokedDispatcher
+import androidx.annotation.RequiresApi
 
 private const val TAG = "OverlayManager"
 
@@ -90,6 +95,7 @@ class OverlayManager(context: Context) {
 /**
  * Root view of the overlay window. A window made by a Service has no Activity,
  * so this view is its own lifecycle, saved-state and view-model owner for Compose.
+ * It also swallows the Back button: the user must not leave the overlay with it (US-14).
  */
 internal class OverlayHost(context: Context) :
     FrameLayout(context), LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
@@ -98,6 +104,10 @@ internal class OverlayHost(context: Context) :
     private val savedStateController = SavedStateRegistryController.create(this)
     private val store = ViewModelStore()
     private val composeView = ComposeView(context)
+
+    // Only exists from Android 13, where the Back gesture does not always send a key
+    private val backBlocker: BackBlocker? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) BackBlocker() else null
 
     override val lifecycle: Lifecycle get() = lifecycleRegistry
     override val savedStateRegistry: SavedStateRegistry
@@ -108,6 +118,7 @@ internal class OverlayHost(context: Context) :
         savedStateController.performAttach()
         savedStateController.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        // Compose looks for these three owners in the view tree
         setViewTreeLifecycleOwner(this)
         setViewTreeSavedStateRegistryOwner(this)
         setViewTreeViewModelStoreOwner(this)
@@ -116,6 +127,7 @@ internal class OverlayHost(context: Context) :
 
     fun setContent(content: @Composable () -> Unit) = composeView.setContent(content)
 
+    /** Compose only recomposes while the lifecycle is at least STARTED. */
     fun start() {
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
     }
@@ -123,5 +135,40 @@ internal class OverlayHost(context: Context) :
     fun destroy() {
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         store.clear()
+    }
+
+    // Back gesture (Android 13+): register once the view is in a window
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        backBlocker?.register(this)
+    }
+
+    override fun onDetachedFromWindow() {
+        backBlocker?.unregister(this)
+        super.onDetachedFromWindow()
+    }
+
+    // Back key (3-button navigation, older Android): consumed, nothing happens
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) return true
+        return super.dispatchKeyEvent(event)
+    }
+}
+
+/** Registers a Back callback that does nothing, so the Back gesture has no effect. */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private class BackBlocker {
+
+    private val callback = OnBackInvokedCallback { /* Back is blocked on purpose */ }
+
+    fun register(view: View) {
+        view.findOnBackInvokedDispatcher()?.registerOnBackInvokedCallback(
+            OnBackInvokedDispatcher.PRIORITY_OVERLAY,
+            callback
+        )
+    }
+
+    fun unregister(view: View) {
+        view.findOnBackInvokedDispatcher()?.unregisterOnBackInvokedCallback(callback)
     }
 }
