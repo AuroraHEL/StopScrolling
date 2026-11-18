@@ -18,7 +18,6 @@ import com.example.stopscrolling.ui.dashboard.DashboardViewModel
 import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
 
-// Names of the screens, so that we never write a route as a raw string elsewhere.
 object Routes {
     const val PERMISSION = "permission"
     const val DASHBOARD = "dashboard"
@@ -26,15 +25,25 @@ object Routes {
 }
 
 @Composable
-fun AppNavHost(navController: NavHostController = rememberNavController()) {
-    NavHost(navController = navController, startDestination = Routes.PERMISSION) {
-
+fun AppNavHost(
+    navController: NavHostController = rememberNavController()
+) {
+    NavHost(
+        navController = navController,
+        startDestination = Routes.PERMISSION
+    ) {
         composable(Routes.PERMISSION) {
-            Box(Modifier.fillMaxSize().safeDrawingPadding()) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .safeDrawingPadding()
+            ) {
                 PermissionScreen(
                     onPermissionGranted = {
                         navController.navigate(Routes.DASHBOARD) {
-                            popUpTo(Routes.PERMISSION) { inclusive = true }
+                            popUpTo(Routes.PERMISSION) {
+                                inclusive = true
+                            }
                             launchSingleTop = true
                         }
                     }
@@ -43,19 +52,36 @@ fun AppNavHost(navController: NavHostController = rememberNavController()) {
         }
 
         composable(Routes.DASHBOARD) {
-            val viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
+            val viewModel: DashboardViewModel =
+                viewModel(factory = DashboardViewModel.Factory)
+
             val groups by viewModel.groups.collectAsStateWithLifecycle()
+            val isUpdatingLimit by
+            viewModel.isUpdatingLimit.collectAsStateWithLifecycle()
+            val limitUpdateError by
+            viewModel.limitUpdateError.collectAsStateWithLifecycle()
+
             DashboardScreen(
                 groups = groups,
-                onNewGroupClick = { navController.navigate(Routes.NEW_GROUP) }
+                onNewGroupClick = {
+                    navController.navigate(Routes.NEW_GROUP)
+                },
+                onUpdateLimit = viewModel::updateLimit,
+                isUpdatingLimit = isUpdatingLimit,
+                limitUpdateError = limitUpdateError,
+                onClearLimitUpdateError = viewModel::clearLimitUpdateError
             )
         }
 
         composable(Routes.NEW_GROUP) {
-            val viewModel: NewGroupViewModel = viewModel(factory = NewGroupViewModel.Factory)
+            val viewModel: NewGroupViewModel =
+                viewModel(factory = NewGroupViewModel.Factory)
+
             NewGroupScreen(
                 viewModel = viewModel,
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    navController.popBackStack()
+                }
             )
         }
     }

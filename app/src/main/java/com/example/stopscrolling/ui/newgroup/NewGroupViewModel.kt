@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.stopscrolling.StopScrollingApp
 import com.example.stopscrolling.data.InstalledApp
+import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,11 @@ data class NewGroupUiState(
     val name: String = "",
     val apps: List<InstalledApp> = emptyList(),
     val selectedPackages: Set<String> = emptySet(),
+
+    // US-12/17: Limit settings
+    val timeLimit: Int = 0,
+    val limitType: LimitType = LimitType.HARD,
+
     val isLoading: Boolean = true,
     val nameError: Boolean = false,
     val appsError: Boolean = false,
@@ -46,12 +52,16 @@ class NewGroupViewModel(
                 installedAppsRepository.getInstalledApps()
                     .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
             }
-            _uiState.update { it.copy(apps = apps, isLoading = false) }
+            _uiState.update {
+                it.copy(apps = apps, isLoading = false)
+            }
         }
     }
 
     fun onNameChange(newName: String) {
-        _uiState.update { it.copy(name = newName, nameError = false) }
+        _uiState.update {
+            it.copy(name = newName, nameError = false)
+        }
     }
 
     fun onAppToggle(packageName: String) {
@@ -65,17 +75,46 @@ class NewGroupViewModel(
         }
     }
 
+    fun onTimeLimitChange(minutes: Int) {
+        if (minutes >= 0) {
+            _uiState.update {
+                it.copy(timeLimit = minutes)
+            }
+        }
+    }
+
+    fun onLimitTypeChange(type: LimitType) {
+        _uiState.update {
+            it.copy(limitType = type)
+        }
+    }
+
     fun onSaveClick() {
         val state = _uiState.value
         val nameInvalid = state.name.isBlank()
         val appsInvalid = state.selectedPackages.isEmpty()
+
         if (nameInvalid || appsInvalid) {
-            _uiState.update { it.copy(nameError = nameInvalid, appsError = appsInvalid) }
+            _uiState.update {
+                it.copy(
+                    nameError = nameInvalid,
+                    appsError = appsInvalid
+                )
+            }
             return
         }
+
         viewModelScope.launch {
-            groupRepository.createGroup(state.name, state.selectedPackages.toList())
-            _uiState.update { it.copy(saved = true) }
+            groupRepository.createGroup(
+                name = state.name,
+                packageNames = state.selectedPackages.toList(),
+                timeLimit = state.timeLimit,
+                limitType = state.limitType
+            )
+
+            _uiState.update {
+                it.copy(saved = true)
+            }
         }
     }
 
@@ -83,7 +122,10 @@ class NewGroupViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 val app = this[APPLICATION_KEY] as StopScrollingApp
-                NewGroupViewModel(app.appGroupRepository, app.installedAppsRepository)
+                NewGroupViewModel(
+                    app.appGroupRepository,
+                    app.installedAppsRepository
+                )
             }
         }
     }
