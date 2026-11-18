@@ -14,6 +14,7 @@ enum class MathQuizError {
     WRONG_ANSWER
 }
 
+/** UI state for the math quiz challenge screen */
 data class MathQuizUiState(
     val problem: MathProblem = MathEquationGenerator.generate(),
     val userAnswerInput: String = "",
@@ -21,13 +22,14 @@ data class MathQuizUiState(
     val isSolved: Boolean = false
 )
 
+/** Manages the current math problem, input filtering, and answer validation */
 class MathQuizViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(MathQuizUiState())
     val uiState: StateFlow<MathQuizUiState> = _uiState.asStateFlow()
 
     fun onAnswerChange(input: String) {
-        val filtered = input.filter { it.isDigit() }
+        val filtered = input.filter { it.isDigit() }.take(MAX_ANSWER_LENGTH)
         _uiState.update {
             it.copy(userAnswerInput = filtered, error = MathQuizError.NONE)
         }
@@ -53,5 +55,9 @@ class MathQuizViewModel : ViewModel() {
 
     fun resetQuiz() {
         _uiState.value = MathQuizUiState(problem = MathEquationGenerator.generate())
+    }
+
+    companion object {
+        const val MAX_ANSWER_LENGTH = 6
     }
 }

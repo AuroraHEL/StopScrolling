@@ -44,4 +44,46 @@ class MathQuizViewModelTest {
         assertEquals(MathQuizError.NONE, viewModel.uiState.value.error)
         assertTrue(viewModel.uiState.value.isSolved)
     }
+
+    @Test
+    fun onAnswerChange_filtersOutNonDigits() {
+        val viewModel = MathQuizViewModel()
+        viewModel.onAnswerChange("12a")
+
+        assertEquals("12", viewModel.uiState.value.userAnswerInput)
+    }
+
+    @Test
+    fun onAnswerChange_limitsInputToMaxDigits() {
+        val viewModel = MathQuizViewModel()
+        viewModel.onAnswerChange("123456789")
+
+        assertEquals("123456", viewModel.uiState.value.userAnswerInput)
+    }
+
+    @Test
+    fun onAnswerChange_clearsPreviousError() {
+        val viewModel = MathQuizViewModel()
+        viewModel.onSubmitAnswer()
+        assertEquals(MathQuizError.INVALID_NUMBER, viewModel.uiState.value.error)
+
+        viewModel.onAnswerChange("5")
+
+        assertEquals(MathQuizError.NONE, viewModel.uiState.value.error)
+    }
+
+    @Test
+    fun resetQuiz_clearsSolvedStateInputAndError() {
+        val viewModel = MathQuizViewModel()
+        val correctAnswer = viewModel.uiState.value.problem.correctAnswer
+        viewModel.onAnswerChange(correctAnswer.toString())
+        viewModel.onSubmitAnswer()
+        assertTrue(viewModel.uiState.value.isSolved)
+
+        viewModel.resetQuiz()
+
+        assertFalse(viewModel.uiState.value.isSolved)
+        assertEquals("", viewModel.uiState.value.userAnswerInput)
+        assertEquals(MathQuizError.NONE, viewModel.uiState.value.error)
+    }
 }
