@@ -18,4 +18,16 @@ interface AppGroupDao {
     @Transaction
     @Query("SELECT * FROM app_groups ORDER BY name COLLATE NOCASE ASC")
     fun observeGroupsWithApps(): Flow<List<GroupWithApps>>
+
+    @Query("""
+    UPDATE app_groups
+    SET timeLimit = :timeLimit,
+        limitType = :limitType
+    WHERE id = :groupId
+""")
+    suspend fun updateLimit(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType
+    ): Int
 }

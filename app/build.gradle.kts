@@ -85,4 +85,5 @@ dependencies {
     // US-08: DAO Testing
     androidTestImplementation("androidx.room:room-testing:2.8.4")
     androidTestImplementation("androidx.test:core:1.7.0")
+
 }
