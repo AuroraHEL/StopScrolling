@@ -3,8 +3,6 @@ package com.example.stopscrolling.usage
 import com.example.stopscrolling.data.AppGroup
 import com.example.stopscrolling.data.GroupApp
 import com.example.stopscrolling.data.GroupWithApps
-import com.example.stopscrolling.data.repository.AppGroupRepository
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -12,12 +10,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoomRegulatedGroupLookupTest {
-
-    // Fake repository: it returns a fixed list of groups, without database
-    private class FakeRepository(private val groups: List<GroupWithApps>) : AppGroupRepository {
-        override fun observeGroups(): Flow<List<GroupWithApps>> = flowOf(groups)
-        override suspend fun createGroup(name: String, packageNames: List<String>): Int = 0
-    }
 
     private fun group(id: Int, name: String, vararg packageNames: String) = GroupWithApps(
         group = AppGroup(id = id, name = name),
@@ -28,9 +20,8 @@ class RoomRegulatedGroupLookupTest {
 
     @Test
     fun appInAGroup_returnsThatGroupWithAllItsApps() = runBlocking {
-        val lookup = RoomRegulatedGroupLookup(
-            FakeRepository(listOf(group(1, "Social", "app.a", "app.b"), group(2, "Games", "app.c")))
-        )
+        val groups = listOf(group(1, "Social", "app.a", "app.b"), group(2, "Games", "app.c"))
+        val lookup = RoomRegulatedGroupLookup { flowOf(groups) }
 
         val result = lookup.findGroupsOf("app.b")
 
@@ -39,7 +30,8 @@ class RoomRegulatedGroupLookupTest {
 
     @Test
     fun appInNoGroup_returnsEmptyList() = runBlocking {
-        val lookup = RoomRegulatedGroupLookup(FakeRepository(listOf(group(1, "Social", "app.a"))))
+        val groups = listOf(group(1, "Social", "app.a"))
+        val lookup = RoomRegulatedGroupLookup { flowOf(groups) }
 
         val result = lookup.findGroupsOf("app.z")
 
@@ -48,9 +40,8 @@ class RoomRegulatedGroupLookupTest {
 
     @Test
     fun appInTwoGroups_returnsBothGroups() = runBlocking {
-        val lookup = RoomRegulatedGroupLookup(
-            FakeRepository(listOf(group(1, "Social", "app.a"), group(2, "Night", "app.a", "app.d")))
-        )
+        val groups = listOf(group(1, "Social", "app.a"), group(2, "Night", "app.a", "app.d"))
+        val lookup = RoomRegulatedGroupLookup { flowOf(groups) }
 
         val result = lookup.findGroupsOf("app.a")
 

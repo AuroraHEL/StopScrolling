@@ -45,7 +45,7 @@ class UsageMonitorService : Service() {
 
     // The groups come from the database, through the repository of the app
     private val groupLookup: RegulatedGroupLookup by lazy {
-        RoomRegulatedGroupLookup((application as StopScrollingApp).appGroupRepository)
+        RoomRegulatedGroupLookup((application as StopScrollingApp).appGroupRepository::observeGroups)
     }
 
     override fun onCreate() {

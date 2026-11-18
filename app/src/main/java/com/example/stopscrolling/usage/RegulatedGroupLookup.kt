@@ -19,19 +19,6 @@ interface RegulatedGroupLookup {
     suspend fun findGroupsOf(packageName: String): List<RegulatedGroup>
 }
 
-/*
- * Fake version, only for testing without the database: Chrome is the only "regulated" app.
- * The app uses [RoomRegulatedGroupLookup].
- */
-class FakeRegulatedGroupLookup : RegulatedGroupLookup {
-
-    private val group = RegulatedGroup(groupId = 1, packageNames = listOf("com.android.chrome"))
-
-    override suspend fun findGroupsOf(packageName: String): List<RegulatedGroup> {
-        return if (packageName in group.packageNames) listOf(group) else emptyList()
-    }
-}
-
 // ---------- Event for the other parts of the app ----------
 
 /* Sent when the user opens an app that is in a regulated group. */
