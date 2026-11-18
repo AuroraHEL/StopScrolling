@@ -8,7 +8,9 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -16,6 +18,10 @@ import androidx.core.content.ContextCompat
 import com.example.stopscrolling.MainActivity
 import com.example.stopscrolling.StopScrollingApp
 import com.example.stopscrolling.hasUsageStatsPermission
+import com.example.stopscrolling.overlay.OverlayManager
+import com.example.stopscrolling.ui.overlay.OverlayContent
+import com.example.stopscrolling.ui.overlay.OverlayRequest
+import com.example.stopscrolling.ui.theme.StopScrollingTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,13 +30,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /*
  * Foreground service that checks which app is on the screen.
  *
  * Every second it reads the new usage events. When an app is opened, it looks for the
- * group of that app. If the app is in a regulated group, it publishes a
- * [RegulatedAppOpened] event in [UsageMonitorEvents].
+ * groups of that app and remembers them. It then checks the limits of these groups
+ * (see [LimitEvaluator]) and shows the hard or soft overlay when a limit is reached.
  *
  * Start it with [UsageMonitorService.start] when the Usage Access permission is granted.
  */
@@ -47,6 +54,19 @@ class UsageMonitorService : Service() {
     private val groupLookup: RegulatedGroupLookup by lazy {
         RoomRegulatedGroupLookup((application as StopScrollingApp).appGroupRepository::observeGroups)
     }
+
+    // TODO US-19: replace by the real lookup written by Malak
+    private val extensionLookup: ExtensionLookup = NoExtensionLookup
+
+    private val overlayManager by lazy { OverlayManager(this) }
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    // Groups of the app that is on the screen (empty if it is not regulated)
+    @Volatile
+    private var currentGroups: List<RegulatedGroup> = emptyList()
+
+    // What the overlay shows now, null if there is no overlay. Main thread only.
+    private var shownRequest: OverlayRequest? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +93,7 @@ class UsageMonitorService : Service() {
 
     override fun onDestroy() {
         serviceScope.cancel()
+        hideOverlayNow()
         super.onDestroy()
     }
 
@@ -86,6 +107,8 @@ class UsageMonitorService : Service() {
         // We ignore the past: the service is started from our app, so StopScrolling
         // is the app on the screen at the beginning.
         var lastEventTime = System.currentTimeMillis()
+        // When the limits must be checked again (0 = as soon as possible)
+        var nextLimitCheckAt = 0L
 
         while (true) {
             try {
@@ -97,7 +120,12 @@ class UsageMonitorService : Service() {
                     lastEventTime = newEvents.last().timestamp
                     for (packageName in detector.process(newEvents)) {
                         handleOpenedApp(packageName)
+                        nextLimitCheckAt = 0L // a new app is open: check right away
                     }
+                }
+
+                if (now >= nextLimitCheckAt) {
+                    nextLimitCheckAt = now + checkLimits()
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -112,9 +140,10 @@ class UsageMonitorService : Service() {
         }
     }
 
-    // Looks for the group of the opened app and tells the rest of the app
+    // Looks for the groups of the opened app and tells the rest of the app
     private suspend fun handleOpenedApp(packageName: String) {
         val groups = groupLookup.findGroupsOf(packageName)
+        currentGroups = groups
         if (groups.isEmpty()) {
             updateNotification(DEFAULT_TEXT)
             return
@@ -129,6 +158,93 @@ class UsageMonitorService : Service() {
             Log.d(TAG, "Regulated app opened: $packageName (group ${group.groupId}), usage today: ${usageToday / 1000} s")
             UsageMonitorEvents.publish(RegulatedAppOpened(packageName, group.groupId, usageToday))
         }
+    }
+
+    // ---------- Limits and overlay ----------
+
+    /* Checks the limits of the open app. Returns the time to wait before the next check. */
+    private suspend fun checkLimits(): Long {
+        val groups = currentGroups
+        if (groups.isEmpty()) {
+            withContext(Dispatchers.Main) { hideOverlayNow() }
+            return LimitEvaluator.SLOW_CHECK_MILLIS
+        }
+
+        val states = groups.map { group ->
+            GroupLimitState(
+                group = group,
+                usedMillis = tracker.getTodayUsageForPackages(group.packageNames),
+                extraMinutes = extensionLookup.extraMinutesToday(group.groupId)
+            )
+        }
+        val result = LimitEvaluator.evaluate(states)
+        val decision = result.decision
+
+        withContext(Dispatchers.Main) {
+            if (decision == null) hideOverlayNow() else showOverlayNow(decision)
+        }
+        return result.nextCheckInMillis
+    }
+
+    // The three functions below must run on the main thread
+    private fun showOverlayNow(decision: BlockDecision) {
+        val group = decision.group
+        val request = OverlayRequest(
+            groupId = group.groupId,
+            groupName = group.name,
+            limitType = group.limitType,
+            usedMinutes = decision.usedMinutes,
+            limitMinutes = group.timeLimitMinutes
+        )
+
+        val shown = shownRequest
+        // Same screen already visible: nothing to do
+        if (shown != null && shown.groupId == request.groupId && shown.limitType == request.limitType) return
+        hideOverlayNow() // another group or type: replace it
+
+        val ok = overlayManager.show {
+            StopScrollingTheme {
+                OverlayContent(
+                    request = request,
+                    onGoHome = ::onOverlayGoHome,
+                    onExtensionGranted = ::onExtensionGranted
+                )
+            }
+        }
+        if (ok) {
+            shownRequest = request
+        } else {
+            Log.w(TAG, "Overlay not shown: is the display over other apps permission granted?")
+        }
+    }
+
+    private fun hideOverlayNow() {
+        if (shownRequest == null) return
+        overlayManager.hide()
+        shownRequest = null
+    }
+
+    private fun goToHomeScreen() {
+        val home = Intent(Intent.ACTION_MAIN)
+            .addCategory(Intent.CATEGORY_HOME)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(home)
+    }
+
+    // Called by the overlay buttons. post{} so that the view is not removed during its own click.
+    private fun onOverlayGoHome() {
+        mainHandler.post {
+            // Forget the open app: otherwise the next check shows the overlay again
+            // before the launcher event arrives
+            currentGroups = emptyList()
+            hideOverlayNow()
+            goToHomeScreen()
+        }
+    }
+
+    // The challenge saved the extension: hide now, the next check (within 1 s) re-evaluates
+    private fun onExtensionGranted() {
+        mainHandler.post { hideOverlayNow() }
     }
 
     // ---------- Notification ----------
