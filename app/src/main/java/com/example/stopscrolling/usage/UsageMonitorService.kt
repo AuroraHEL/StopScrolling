@@ -104,9 +104,23 @@ class UsageMonitorService : Service() {
     private suspend fun monitorLoop() {
         val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
 
-        // We ignore the past: the service is started from our app, so StopScrolling
-        // is the app on the screen at the beginning.
         var lastEventTime = System.currentTimeMillis()
+
+        // Android can restart this service while a regulated app is open (the overlay is lost
+        // with the process). The last usage event tells us which app is on the screen.
+        try {
+            val lastEvent = tracker
+                .readForegroundEvents(lastEventTime - STARTUP_LOOKBACK_MS, lastEventTime)
+                .lastOrNull()
+            if (lastEvent != null && lastEvent.isResumed) {
+                detector.process(listOf(lastEvent))
+                handleOpenedApp(lastEvent.packageName)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Cannot find the app on the screen at startup", e)
+        }
         // When the limits must be checked again (0 = as soon as possible)
         var nextLimitCheckAt = 0L
 
@@ -306,6 +320,9 @@ class UsageMonitorService : Service() {
         // How often we check the events
         private const val POLL_SCREEN_ON_MS = 1_000L
         private const val POLL_SCREEN_OFF_MS = 10_000L
+
+        // How far back we look for the app on the screen when the loop starts (6 hours)
+        private const val STARTUP_LOOKBACK_MS = 6 * 60 * 60 * 1000L
 
         /* Starts the service. Call it when the app is on the screen. */
         fun start(context: Context) {
