@@ -137,14 +137,17 @@ internal class OverlayHost(context: Context) :
         store.clear()
     }
 
-    // Back gesture (Android 13+): register once the view is in a window
     override fun onAttachedToWindow() {
         super.onAttachedToWindow()
-        backBlocker?.register(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backBlocker?.register(this)
+        }
     }
 
     override fun onDetachedFromWindow() {
-        backBlocker?.unregister(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backBlocker?.unregister(this)
+        }
         super.onDetachedFromWindow()
     }
 
