@@ -9,14 +9,16 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    entities = [AppGroup::class, GroupApp::class],
-    version = 2,
+    entities = [AppGroup::class, GroupApp::class, TimeExtension::class],
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(LimitTypeConverter::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun appGroupDao(): AppGroupDao
+
+    abstract fun timeExtensionDao(): TimeExtensionDao
 
     companion object {
         @Volatile
@@ -33,6 +35,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS time_extensions (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        groupId INTEGER NOT NULL,
+                        dayStartMillis INTEGER NOT NULL,
+                        grantedMinutes INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -40,7 +57,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "stopscrolling.db"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { instance = it }
             }

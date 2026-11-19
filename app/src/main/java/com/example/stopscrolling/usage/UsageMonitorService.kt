@@ -31,6 +31,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.example.stopscrolling.ui.mathquiz.MathQuizDialog
 
 /*
  * Foreground service that checks which app is on the screen.
@@ -55,8 +56,9 @@ class UsageMonitorService : Service() {
         RoomRegulatedGroupLookup((application as StopScrollingApp).appGroupRepository::observeGroups)
     }
 
-    // TODO US-19: replace by the real lookup written by Malak
-    private val extensionLookup: ExtensionLookup = NoExtensionLookup
+    private val extensionLookup: ExtensionLookup by lazy {
+        (application as StopScrollingApp).extensionRepository
+    }
 
     private val overlayManager by lazy { OverlayManager(this) }
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -221,7 +223,19 @@ class UsageMonitorService : Service() {
                 OverlayContent(
                     request = request,
                     onGoHome = ::onOverlayGoHome,
-                    onExtensionGranted = ::onExtensionGranted
+                    onExtensionGranted = ::onExtensionGranted,
+                    challengeContent = { onSolved, onCancel ->
+                        MathQuizDialog(
+                            onDismiss = onCancel,
+                            onQuizSolved = {
+                                serviceScope.launch {
+                                    (application as StopScrollingApp).extensionRepository
+                                        .grantExtension(groupId = request.groupId)
+                                    onSolved()
+                                }
+                            }
+                        )
+                    }
                 )
             }
         }
