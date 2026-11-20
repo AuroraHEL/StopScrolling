@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.provider.Settings
@@ -47,9 +48,13 @@ import org.junit.runner.RunWith
  * WARNING: before and after every test, ALL the groups of the app are deleted, so that the
  * test starts from a clean database. For this reason the test only runs on an emulator.
  *
- * Not tested here: the extension with the math quiz (US-19 is not connected to the
- * service yet: the service uses NoExtensionLookup) and the restart after a phone reboot
- * (not implemented).
+ * The overlay tests use the dialer, not Settings: Settings asks Android to hide the overlays
+ * of the other apps (a protection against tapjacking), so no overlay can be seen over it.
+ *
+ * The extension of a soft limit (US-19) is tested too: the user solves the math quiz
+ * on the overlay, and the service saves the extension and removes the overlay.
+ *
+ * Not tested here: the restart after a phone reboot (not implemented).
  *
  */
 @RunWith(AndroidJUnit4::class)
@@ -60,6 +65,9 @@ class BackgroundServiceE2ETest {
     private val appPackage = context.packageName
 
     private var scenario: ActivityScenario<MainActivity>? = null
+
+    // The regulated app of the overlay tests (its package depends on the emulator image)
+    private val dialerPackage: String by lazy { findDialerPackage() }
 
     @Before
     fun setUp() {
@@ -98,7 +106,7 @@ class BackgroundServiceE2ETest {
         UsageMonitorService.stop(context) // it also removes the overlay
         shell("input keyevent KEYCODE_HOME")
         scenario?.close()
-        // We do not leave a limit in the database: it would block Settings later
+        // We do not leave a limit in the database: it would block an app later
         clearGroups()
         // Wait until the notification is gone, so the next test starts clean
         waitUntil(5_000) { findServiceNotification() == null }
@@ -173,7 +181,7 @@ class BackgroundServiceE2ETest {
 
     @Test
     fun hardLimitReached_showsTheHardLockOverlay() {
-        showOverlayForSettings(LimitType.HARD)
+        showOverlayForDialer(LimitType.HARD)
 
         assertTrue(hardTitle() in visibleTexts())
         assertFalse("The soft screen must not appear", softTitle() in visibleTexts())
@@ -181,7 +189,7 @@ class BackgroundServiceE2ETest {
 
     @Test
     fun softLimitReached_showsTheSoftLimitOverlay() {
-        showOverlayForSettings(LimitType.SOFT)
+        showOverlayForDialer(LimitType.SOFT)
 
         assertTrue(softTitle() in visibleTexts())
         assertTrue(
@@ -193,13 +201,17 @@ class BackgroundServiceE2ETest {
 
     @Test
     fun appUnderTheLimit_showsNoOverlay() {
-        val usedMinutes = settingsUsedMinutesAtLeastOne()
-        val groupId = createGroup(timeLimitMinutes = usedMinutes + 60, limitType = LimitType.HARD)
+        val usedMinutes = dialerUsedMinutesAtLeastOne()
+        val groupId = createGroup(
+            timeLimitMinutes = usedMinutes + 60,
+            limitType = LimitType.HARD,
+            packageName = dialerPackage
+        )
 
-        val event = openAppAndWaitForEvent(OPEN_SETTINGS, 15_000) {
-            it.packageName == SETTINGS_PACKAGE && it.groupId == groupId
+        val event = openAppAndWaitForEvent(OPEN_DIALER, 15_000) {
+            it.packageName == dialerPackage && it.groupId == groupId
         }
-        assertNotNull("No event for the Settings app", event)
+        assertNotNull("No event for the dialer app", event)
 
         // The limits are checked right after the opening: we wait and then look at the screen
         Thread.sleep(5_000)
@@ -209,10 +221,10 @@ class BackgroundServiceE2ETest {
 
     @Test
     fun leavingTheBlockedApp_removesTheOverlay() {
-        showOverlayForSettings(LimitType.HARD)
+        showOverlayForDialer(LimitType.HARD)
 
-        // The user goes to an app that is not regulated: the block must go away
-        openApp(OPEN_DIALER)
+        // The user goes to the home screen (not a regulated app): the block must go away
+        shell("input keyevent KEYCODE_HOME")
 
         assertTrue(
             "The overlay is still on the screen after leaving the blocked app",
@@ -220,29 +232,112 @@ class BackgroundServiceE2ETest {
         )
     }
 
+    // ---------- Extension of a soft limit with the math quiz (US-19) ----------
+
+    @Test
+    fun solvingTheMathQuiz_grantsTheExtension_andRemovesTheOverlay() {
+        val groupId = showTheMathQuiz()
+        assertEquals("No extension must exist before the quiz", 0, extraMinutesToday(groupId))
+
+        // The user reads the problem on the screen, solves it and sends the answer
+        typeAnswer(correctAnswerOnScreen())
+        clickOnOverlay(submitText())
+
+        assertTrue(
+            "The overlay is still on the screen after the right answer",
+            waitUntil(10_000) {
+                val texts = visibleTexts()
+                quizTitle() !in texts && softTitle() !in texts
+            }
+        )
+        assertEquals(
+            "The extension was not saved",
+            EXTENSION_MINUTES,
+            extraMinutesToday(groupId)
+        )
+
+        // The limit is now higher: the service must not block the app again
+        Thread.sleep(5_000)
+        assertFalse("The soft screen came back", softTitle() in visibleTexts())
+        assertFalse("The quiz came back", quizTitle() in visibleTexts())
+    }
+
+    @Test
+    fun wrongAnswerInTheMathQuiz_grantsNoExtension_andKeepsTheOverlay() {
+        val groupId = showTheMathQuiz()
+
+        typeAnswer(correctAnswerOnScreen() + 1)
+        clickOnOverlay(submitText())
+
+        // We give the app some time to react, then we look at the screen
+        Thread.sleep(3_000)
+        assertTrue("The quiz disappeared after a wrong answer", quizTitle() in visibleTexts())
+        assertEquals("A wrong answer must not give minutes", 0, extraMinutesToday(groupId))
+    }
+
+    @Test
+    fun cancellingTheMathQuiz_goesBackToTheSoftScreen_withoutExtension() {
+        val groupId = showTheMathQuiz()
+
+        clickOnOverlay(cancelText())
+
+        assertTrue(
+            "The soft screen did not come back after Cancel",
+            waitUntil(5_000) {
+                val texts = visibleTexts()
+                softTitle() in texts && quizTitle() !in texts
+            }
+        )
+        assertEquals("Cancel must not give minutes", 0, extraMinutesToday(groupId))
+    }
+
     // ---------- Helpers: scenarios ----------
 
-    // Opens Settings when its limit is already reached and waits for the overlay of [type]
-    private fun showOverlayForSettings(type: LimitType) {
-        // The limit is the minutes already used: the limit is reached as soon as Settings opens
-        val usedMinutes = settingsUsedMinutesAtLeastOne()
-        createGroup(timeLimitMinutes = usedMinutes, limitType = type)
+    // Opens the dialer when its limit is already reached and waits for the overlay of [type].
+    // We do not use Settings here: it asks Android to hide the overlays of the other apps.
+    // Returns the id of the group.
+    private fun showOverlayForDialer(type: LimitType): Int {
+        // The limit is the minutes already used: the limit is reached as soon as the dialer opens
+        val usedMinutes = dialerUsedMinutesAtLeastOne()
+        val groupId = createGroup(
+            timeLimitMinutes = usedMinutes,
+            limitType = type,
+            packageName = dialerPackage
+        )
 
-        openApp(OPEN_SETTINGS)
+        openApp(OPEN_DIALER)
 
         val expectedTitle = if (type == LimitType.HARD) hardTitle() else softTitle()
         val shown = waitUntil(20_000) { expectedTitle in visibleTexts() }
         if (!shown) {
             throw AssertionError(
                 "The overlay \"$expectedTitle\" did not appear " +
-                    "(limit: $usedMinutes min, type: $type)\n${overlayDiagnostics()}"
+                    "(limit: $usedMinutes min, type: $type)\n${overlayDiagnostics(dialerPackage)}"
             )
         }
+        return groupId
+    }
+
+    // The soft limit is reached and the user asks for more time: waits for the math quiz.
+    // Returns the id of the group.
+    private fun showTheMathQuiz(): Int {
+        val groupId = showOverlayForDialer(LimitType.SOFT)
+
+        clickOnOverlay(extendButtonText())
+
+        if (!waitUntil(10_000) { quizTitle() in visibleTexts() }) {
+            throw AssertionError(
+                "The math quiz did not appear after the tap on \"${extendButtonText()}\"\n" +
+                    "${windowsDiagnostics()}\n" +
+                    "warnings and errors of the app: ${appWarnings()}"
+            )
+        }
+        return groupId
     }
 
     // Information for the error message when the overlay does not appear:
     // is the permission granted, which windows exist, what the screen shows, what the service logged
-    private fun overlayDiagnostics(): String {
+    private fun overlayDiagnostics(packageName: String): String {
         val windowName = Regex("Window\\{[^}]*\\}")
         val windows = shell("dumpsys window windows").lines()
             .filter {
@@ -250,18 +345,17 @@ class BackgroundServiceE2ETest {
                     it.contains("ty=APPLICATION_OVERLAY")
             }
             .map { windowName.find(it)?.value ?: it.trim().take(80) }
-        val texts = visibleTexts().filter { it.isNotBlank() }.distinct().take(15)
-        val logs = shell("logcat -d -s UsageMonitor:V OverlayManager:V").lines()
+        val logs = shell("logcat -d -s UsageMonitor:V").lines()
             .filter { it.isNotBlank() }
             .takeLast(8)
             .map { it.trim().take(120) }
 
-        // The usage of Settings, as the service sees it, and the last events behind it
+        // The usage of the app, as the service sees it, and the last events behind it
         val tracker = UsageTracker(context)
         val now = System.currentTimeMillis()
-        val usedSeconds = tracker.getTodayUsageForPackages(listOf(SETTINGS_PACKAGE)) / 1000
+        val usedSeconds = tracker.getTodayUsageForPackages(listOf(packageName)) / 1000
         val lastEvents = tracker.readForegroundEvents(now - 2 * 60 * 60 * 1000L, now)
-            .filter { it.packageName == SETTINGS_PACKAGE }
+            .filter { it.packageName == packageName }
             .takeLast(8)
             .map {
                 val kind = if (it.isResumed) "RESUMED" else "END"
@@ -270,56 +364,127 @@ class BackgroundServiceE2ETest {
 
         return "canDrawOverlays=${Settings.canDrawOverlays(context)}\n" +
             "windows of the app and overlay windows: $windows\n" +
-            "texts on the screen: $texts\n" +
+            "${windowsDiagnostics()}\n" +
             "last logs of the service: $logs\n" +
-            "usage of Settings now: $usedSeconds s\n" +
-            "last events of Settings: $lastEvents"
+            "warnings and errors of the app: ${appWarnings()}\n" +
+            "usage of $packageName now: $usedSeconds s\n" +
+            "last events of $packageName: $lastEvents"
     }
 
-    // A limit is at least 1 minute, so Settings needs at least 1 minute of use today.
+    // Every window that the accessibility service can see: type, package, focus and some texts
+    private fun windowsDiagnostics(): String {
+        val windows = instrumentation.uiAutomation.windows.map { window ->
+            val texts = mutableListOf<String>()
+            collectTexts(window.root, texts)
+            "type=${window.type} layer=${window.layer} active=${window.isActive} " +
+                "focused=${window.isFocused} package=${window.root?.packageName} " +
+                "texts=${texts.filter { it.isNotBlank() }.distinct().take(6)}"
+        }
+        return "accessibility windows:\n  " + windows.joinToString("\n  ") +
+            "\noverlay window of the app (dumpsys): ${overlayWindowState()}"
+    }
+
+    // What Android knows about the overlay window of the app: visible, hidden by the system...
+    private fun overlayWindowState(): String {
+        val lines = shell("dumpsys window windows").lines()
+        // The overlay has no title, so its name ends with the package
+        val start = lines.indexOfFirst { it.contains("Window #") && it.contains("$appPackage}") }
+        if (start < 0) return "no overlay window"
+
+        val block = lines.drop(start + 1).takeWhile { !it.contains("Window #") }
+        val interesting = Regex("hide|hidden|visib|surface|drawstate|onscreen|alpha", RegexOption.IGNORE_CASE)
+        val state = block.filter { interesting.containsMatchIn(it) }
+            .map { it.trim().take(300) }
+            .take(16)
+        return "$state\n  who hides the overlays: ${overlayHiders()}"
+    }
+
+    // Windows that ask Android to hide the overlays of the other apps, and related lines
+    private fun overlayHiders(): String {
+        val hiding = mutableListOf<String>()
+        var currentWindow = ""
+        for (line in shell("dumpsys window windows").lines()) {
+            if (line.contains("Window #")) currentWindow = line.trim().take(100)
+            val asksToHide = line.contains("HIDE_NON_SYSTEM_OVERLAY", ignoreCase = true) ||
+                line.contains("HIDE_OVERLAY", ignoreCase = true)
+            if (asksToHide && currentWindow !in hiding) hiding.add(currentWindow)
+        }
+        val related = shell("dumpsys window").lines()
+            .filter { it.contains("NonSystemOverlay", ignoreCase = true) }
+            .map { it.trim().take(250) }
+            .take(5)
+        return "windows with the hide flag=$hiding, other lines=$related"
+    }
+
+    // Warnings and errors written by the app (the test runs in the same process as the app)
+    private fun appWarnings(): List<String> =
+        shell("logcat -d --pid=${android.os.Process.myPid()} *:W").lines()
+            .filter { it.isNotBlank() }
+            .takeLast(10)
+            .map { it.trim().take(160) }
+
+    // A limit is at least 1 minute, so the dialer needs at least 1 minute of use today.
     // If it has less, we use it and wait (about one minute, only the first time).
-    // Returns the minutes used today by Settings.
-    private fun settingsUsedMinutesAtLeastOne(): Int {
-        if (settingsUsedMinutes() < 1) {
-            openApp(OPEN_SETTINGS)
+    // Returns the minutes used today by the dialer.
+    private fun dialerUsedMinutesAtLeastOne(): Int {
+        if (usedMinutes(dialerPackage) < 1) {
+            openApp(OPEN_DIALER)
             // The time of an open app counts until now, so we only wait
             assertTrue(
-                "Settings did not reach 1 minute of use",
-                waitUntil(120_000) { settingsUsedMinutes() >= 1 }
+                "The dialer did not reach 1 minute of use",
+                waitUntil(120_000) { usedMinutes(dialerPackage) >= 1 }
             )
         }
-        // Back to the home screen: the next opening of Settings must be a new opening
+        // Back to the home screen: the next opening of the dialer must be a new opening
         shell("input keyevent KEYCODE_HOME")
         Thread.sleep(2_000)
-        closeSettings()
-        return settingsUsedMinutes()
+        closeApp(dialerPackage)
+        return usedMinutes(dialerPackage)
     }
 
-    // Settings can open on an old screen of its back stack, for example the page where the
-    // user gave the Usage Access permission. Android hides the overlays of other apps on the
-    // permission pages (a security rule), so the overlay would be there but invisible.
-    // We close Settings: the next time it opens on its home screen.
-    private fun closeSettings() {
-        shell("am force-stop $SETTINGS_PACKAGE")
+    // An app can open on an old screen of its back stack. We close it,
+    // so the next time it opens on its first screen.
+    private fun closeApp(packageName: String) {
+        shell("am force-stop $packageName")
         Thread.sleep(1_000)
     }
 
-    private fun settingsUsedMinutes(): Int =
-        (UsageTracker(context).getTodayUsageForPackages(listOf(SETTINGS_PACKAGE)) / 60_000L).toInt()
+    private fun usedMinutes(packageName: String): Int =
+        (UsageTracker(context).getTodayUsageForPackages(listOf(packageName)) / 60_000L).toInt()
+
+    // The app that opens for the dial intent. Its package depends on the emulator image.
+    private fun findDialerPackage(): String {
+        val output = shell("cmd package resolve-activity --brief -a android.intent.action.DIAL")
+        // The last line is "package/activity"
+        val component = output.lines().map { it.trim() }.lastOrNull { it.contains("/") }
+            ?: throw AssertionError("Cannot find the dialer app. Output: $output")
+        return component.substringBefore("/")
+    }
 
     // ---------- Helpers: database ----------
 
-    // Creates a group with only the Settings app. Returns the id of the group.
-    private fun createGroup(timeLimitMinutes: Int, limitType: LimitType = LimitType.HARD): Int =
+    // Creates a group with only one app (Settings if not said otherwise).
+    // Returns the id of the group.
+    private fun createGroup(
+        timeLimitMinutes: Int,
+        limitType: LimitType = LimitType.HARD,
+        packageName: String = SETTINGS_PACKAGE
+    ): Int =
         runBlocking {
             val repository = (context.applicationContext as StopScrollingApp).appGroupRepository
             repository.createGroup(
                 name = TEST_GROUP_NAME,
-                packageNames = listOf(SETTINGS_PACKAGE),
+                packageNames = listOf(packageName),
                 timeLimit = timeLimitMinutes,
                 limitType = limitType
             )
         }
+
+    // Minutes of extension saved today for the group, read from the real database
+    private fun extraMinutesToday(groupId: Int): Int = runBlocking {
+        (context.applicationContext as StopScrollingApp).extensionRepository
+            .extraMinutesToday(groupId)
+    }
 
     // Deletes all the groups (and their apps). Not allowed on the main thread.
     private fun clearGroups() {
@@ -373,6 +538,9 @@ class BackgroundServiceE2ETest {
     private fun extendButtonText() = context.resources.getQuantityString(
         R.plurals.overlay_soft_extend, EXTENSION_MINUTES, EXTENSION_MINUTES
     )
+    private fun quizTitle() = context.getString(R.string.math_quiz_title, EXTENSION_MINUTES)
+    private fun submitText() = context.getString(R.string.submit)
+    private fun cancelText() = context.getString(R.string.cancel)
 
     // All the texts on the screen, overlay included, like a screen reader sees them.
     // We compare the whole text: "Soft limit reached" must not be mistaken for "Limit reached".
@@ -392,6 +560,98 @@ class BackgroundServiceE2ETest {
         node.contentDescription?.let { texts.add(it.toString()) }
         for (index in 0 until node.childCount) {
             collectTexts(node.getChild(index), texts)
+        }
+    }
+
+    // The roots of the windows of our app (the overlay is one of them).
+    // Settings, the keyboard and the other apps are not included.
+    private fun ourWindowRoots(): List<AccessibilityNodeInfo> {
+        val automation = instrumentation.uiAutomation
+        val roots = mutableListOf<AccessibilityNodeInfo?>(automation.rootInActiveWindow)
+        for (window in automation.windows) {
+            roots.add(window.root)
+        }
+        return roots.filterNotNull().filter { it.packageName?.toString() == appPackage }
+    }
+
+    // The first node of our windows that matches [condition], or null
+    private fun findOverlayNode(
+        condition: (AccessibilityNodeInfo) -> Boolean
+    ): AccessibilityNodeInfo? {
+        for (root in ourWindowRoots()) {
+            val node = findNode(root, condition)
+            if (node != null) return node
+        }
+        return null
+    }
+
+    private fun findNode(
+        node: AccessibilityNodeInfo,
+        condition: (AccessibilityNodeInfo) -> Boolean
+    ): AccessibilityNodeInfo? {
+        if (condition(node)) return node
+        for (index in 0 until node.childCount) {
+            val child = node.getChild(index) ?: continue
+            val found = findNode(child, condition)
+            if (found != null) return found
+        }
+        return null
+    }
+
+    // Taps the button of the overlay with this text, like the user does
+    private fun clickOnOverlay(text: String) {
+        var node: AccessibilityNodeInfo = findOverlayNode {
+            it.text?.toString() == text || it.contentDescription?.toString() == text
+        } ?: throw AssertionError(
+            "\"$text\" is not on the overlay\n${windowsDiagnostics()}"
+        )
+
+        // The text can be inside the button: we go up until we find something to click
+        while (!node.isClickable) {
+            node = node.parent ?: throw AssertionError("\"$text\" cannot be clicked")
+        }
+        assertTrue(
+            "The tap on \"$text\" was refused",
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        )
+    }
+
+    // Writes the answer in the field of the quiz
+    private fun typeAnswer(answer: Int) {
+        val isField = { node: AccessibilityNodeInfo ->
+            node.isEditable || node.className?.toString() == "android.widget.EditText"
+        }
+        val field = findOverlayNode(isField)
+            ?: throw AssertionError(
+                "The field for the answer is not on the overlay\n${windowsDiagnostics()}"
+            )
+
+        val arguments = Bundle().apply {
+            putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                answer.toString()
+            )
+        }
+        assertTrue(
+            "The answer could not be written",
+            field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments)
+        )
+
+        // We wait until the field shows the answer (at most 2 seconds)
+        waitUntil(2_000) { findOverlayNode(isField)?.text?.toString() == answer.toString() }
+    }
+
+    // The quiz shows a problem like "12 + 7 = ?". We read it from the screen and solve it.
+    private fun correctAnswerOnScreen(): Int {
+        val problem = Regex("""(\d+) ([+\-*]) (\d+) = \?""")
+        val match = visibleTexts().firstNotNullOfOrNull { problem.matchEntire(it.trim()) }
+            ?: throw AssertionError("The math problem is not on the screen\n${windowsDiagnostics()}")
+
+        val (first, operator, second) = match.destructured
+        return when (operator) {
+            "+" -> first.toInt() + second.toInt()
+            "-" -> first.toInt() - second.toInt()
+            else -> first.toInt() * second.toInt()
         }
     }
 
