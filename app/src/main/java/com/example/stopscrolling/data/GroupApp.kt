@@ -8,5 +8,7 @@ data class GroupApp(
     @PrimaryKey(autoGenerate = true)
     val id: Int = 0,
     val groupId: Int,
-    val packageName: String
+    val packageName: String,
+    // US-09: true means this app will be removed from the group at midnight
+    val pendingRemoval: Boolean = false
 )
