@@ -32,6 +32,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.example.stopscrolling.ui.mathquiz.MathQuizDialog
+import com.example.stopscrolling.notification.HardLimitWarningNotifier
+import com.example.stopscrolling.data.LimitType
 
 /*
  * Foreground service that checks which app is on the screen.
@@ -50,6 +52,14 @@ class UsageMonitorService : Service() {
 
     private lateinit var tracker: UsageTracker
     private val detector = ForegroundAppDetector()
+
+    private val warningStore by lazy {
+        HardLimitWarningStore(this)
+    }
+
+    private val warningNotifier by lazy {
+        HardLimitWarningNotifier(this)
+    }
 
     // The groups come from the database, through the repository of the app
     private val groupLookup: RegulatedGroupLookup by lazy {
@@ -195,6 +205,9 @@ class UsageMonitorService : Service() {
         }
         val result = LimitEvaluator.evaluate(states)
         val decision = result.decision
+        // US-16: Send a warning when a daily hard limit
+        // has five minutes or less remaining.
+        checkHardLimitWarnings(states)
 
         withContext(Dispatchers.Main) {
             if (decision == null) hideOverlayNow() else showOverlayNow(decision)
@@ -284,6 +297,37 @@ class UsageMonitorService : Service() {
     private fun onExtensionGranted() {
         mainHandler.post { hideOverlayNow() }
     }
+
+    private fun checkHardLimitWarnings(states: List<GroupLimitState>) {
+        for (state in states) {
+            val group = state.group
+
+            if (group.limitType != LimitType.HARD) continue
+
+            if (!HardLimitWarningEvaluator.shouldWarn(
+                    group = group,
+                    usedMillis = state.usedMillis
+                )
+            ) {
+                continue
+            }
+
+            if (warningStore.wasWarnedToday(group.groupId)) {
+                continue
+            }
+
+            val sent = warningNotifier.showWarning(
+                groupId = group.groupId,
+                groupName = group.name
+            )
+
+            if (sent) {
+                warningStore.markWarnedToday(group.groupId)
+                Log.d(TAG, "Hard limit warning sent for group ${group.groupId}")
+            }
+        }
+    }
+
 
     // ---------- Notification ----------
 
