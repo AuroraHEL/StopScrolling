@@ -201,4 +201,167 @@ class AppGroupRepositoryTest {
         }
     }
 
+    // ---------- US-09 Task 2 Tests ----------
+
+    @Test
+    fun updateGroup_updatesDetailsAndReplacesApps() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf(
+                    "com.instagram.android",
+                    "com.example.oldapp"
+                ),
+                timeLimit = 30,
+                limitType = LimitType.HARD
+            )
+
+            val updated = repository.updateGroup(
+                groupId = groupId,
+                name = "Study Apps",
+                packageNames = listOf(
+                    "com.example.newapp",
+                    "com.instagram.android"
+                ),
+                timeLimit = 60,
+                limitType = LimitType.SOFT
+            )
+
+            assertTrue(updated)
+
+            val groups = repository.observeGroups().first()
+            assertEquals(1, groups.size)
+
+            val group = groups.first()
+            assertEquals(groupId, group.group.id)
+            assertEquals("Study Apps", group.group.name)
+            assertEquals(60, group.group.timeLimit)
+            assertEquals(LimitType.SOFT, group.group.limitType)
+
+            val packages = group.apps.map { it.packageName }.toSet()
+            assertEquals(
+                setOf(
+                    "com.example.newapp",
+                    "com.instagram.android"
+                ),
+                packages
+            )
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun updateGroup_returnsFalseForNonexistentGroup() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val updated = repository.updateGroup(
+                groupId = 9999,
+                name = "Unknown",
+                packageNames = listOf("com.example.app"),
+                timeLimit = 30,
+                limitType = LimitType.HARD
+            )
+
+            assertEquals(false, updated)
+            assertTrue(repository.observeGroups().first().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun updateGroup_rejectsInvalidTimeLimit() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val groupId = repository.createGroup(
+                name = "Games",
+                packageNames = listOf("com.example.game"),
+                timeLimit = 30
+            )
+
+            var exceptionThrown = false
+
+            try {
+                repository.updateGroup(
+                    groupId = groupId,
+                    name = "Updated Games",
+                    packageNames = listOf("com.example.newgame"),
+                    timeLimit = -10,
+                    limitType = LimitType.SOFT
+                )
+            } catch (e: IllegalArgumentException) {
+                exceptionThrown = true
+            }
+
+            assertTrue(exceptionThrown)
+
+            val group = repository.observeGroups().first().single()
+            assertEquals("Games", group.group.name)
+            assertEquals(30, group.group.timeLimit)
+            assertEquals(LimitType.HARD, group.group.limitType)
+            assertEquals(
+                listOf("com.example.game"),
+                group.apps.map { it.packageName }
+            )
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun deleteGroup_removesGroupAndApps() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf(
+                    "com.instagram.android",
+                    "com.example.app"
+                )
+            )
+
+            val deleted = repository.deleteGroup(groupId)
+
+            assertTrue(deleted)
+            assertTrue(repository.observeGroups().first().isEmpty())
+
+            // Verify that app associations were removed too.
+            val remainingApps = db.openHelper.readableDatabase
+                .query(
+                    "SELECT * FROM group_apps WHERE groupId = ?",
+                    arrayOf(groupId.toString())
+                ).use { cursor ->
+                    cursor.count
+                }
+
+            assertEquals(0, remainingApps)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun deleteGroup_returnsFalseForNonexistentGroup() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db)
+
+            val deleted = repository.deleteGroup(9999)
+
+            assertEquals(false, deleted)
+            assertTrue(repository.observeGroups().first().isEmpty())
+        } finally {
+            db.close()
+        }
+    }
 }
