@@ -46,6 +46,8 @@ import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.data.PendingChangeType
+import com.example.stopscrolling.data.PendingGroupChange
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +55,9 @@ import com.example.stopscrolling.ui.theme.StopScrollingTheme
 fun DashboardScreen(
     groups: List<GroupWithApps>,
     onNewGroupClick: () -> Unit,
+
+    // US-09: Pending deletions from the database
+    pendingChanges: List<PendingGroupChange> = emptyList(),
 
     // US-09: Navigate to Edit Group screen
     onEditGroupClick: (Int) -> Unit = {},
@@ -77,12 +82,14 @@ fun DashboardScreen(
             )
         }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize()
         ) {
+
             Button(
                 onClick = onNewGroupClick,
                 modifier = Modifier.fillMaxWidth()
@@ -91,13 +98,16 @@ fun DashboardScreen(
                     Icons.Default.Add,
                     contentDescription = null
                 )
+
                 Spacer(Modifier.width(8.dp))
+
                 Text(stringResource(R.string.new_group))
             }
 
             Spacer(Modifier.height(16.dp))
 
             if (groups.isEmpty()) {
+
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -107,7 +117,9 @@ fun DashboardScreen(
                         textAlign = TextAlign.Center
                     )
                 }
+
             } else {
+
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -115,8 +127,18 @@ fun DashboardScreen(
                         items = groups,
                         key = { it.group.id }
                     ) { item ->
+
+                        // US-09: Check whether this group
+                        // has a scheduled DELETE_GROUP change.
+                        val isPendingDeletion = pendingChanges.any { change ->
+                            change.groupId == item.group.id &&
+                                    change.changeType ==
+                                    PendingChangeType.DELETE_GROUP.name
+                        }
+
                         GroupCard(
                             item = item,
+                            isPendingDeletion = isPendingDeletion,
                             onEditLimitClick = {
                                 onClearLimitUpdateError()
                                 editingGroup = item
@@ -131,8 +153,10 @@ fun DashboardScreen(
         }
     }
 
-    // Existing Edit Limit dialog
+    // ---------- Existing Edit Limit Dialog ----------
+
     editingGroup?.let { item ->
+
         EditLimitDialog(
             currentTimeLimit = item.group.timeLimit,
             currentLimitType = item.group.limitType,
@@ -157,18 +181,23 @@ fun DashboardScreen(
     }
 }
 
+// ---------- Group Card ----------
+
 @Composable
 private fun GroupCard(
     item: GroupWithApps,
+    isPendingDeletion: Boolean,
     onEditLimitClick: () -> Unit,
     onEditGroupClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+
             Text(
                 text = item.group.name,
                 style = MaterialTheme.typography.titleMedium
@@ -196,6 +225,7 @@ private fun GroupCard(
                 360 -> stringResource(R.string.six_hours)
                 480 -> stringResource(R.string.eight_hours)
                 600 -> stringResource(R.string.ten_hours)
+
                 else -> pluralStringResource(
                     R.plurals.minutes_count,
                     item.group.timeLimit,
@@ -225,10 +255,23 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
-            // US-09: Edit Group button next to Edit Limit
+            // US-09 Task 3: Show pending deletion status.
+            if (isPendingDeletion) {
+
+                Text(
+                    text = "Will be deleted tomorrow at 00:00",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Existing Edit Limit and Edit Group buttons
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+
                 OutlinedButton(
                     onClick = onEditLimitClick
                 ) {
@@ -245,6 +288,8 @@ private fun GroupCard(
     }
 }
 
+// ---------- Existing Edit Limit Dialog ----------
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditLimitDialog(
@@ -255,6 +300,7 @@ private fun EditLimitDialog(
     onDismiss: () -> Unit,
     onSave: (Int, LimitType) -> Unit
 ) {
+
     var selectedMinutes by remember(
         currentTimeLimit,
         currentLimitType
@@ -301,6 +347,7 @@ private fun EditLimitDialog(
         },
         text = {
             Column {
+
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = {
@@ -309,6 +356,7 @@ private fun EditLimitDialog(
                         }
                     }
                 ) {
+
                     OutlinedTextField(
                         value = timeOptions.find {
                             it.first == selectedMinutes
@@ -343,9 +391,12 @@ private fun EditLimitDialog(
                             expanded = false
                         }
                     ) {
+
                         timeOptions.forEach { (minutes, label) ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = {
+                                    Text(label)
+                                },
                                 onClick = {
                                     selectedMinutes = minutes
                                     expanded = false
@@ -365,6 +416,7 @@ private fun EditLimitDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+
                     FilterChip(
                         selected = selectedType == LimitType.HARD,
                         onClick = {
@@ -389,6 +441,7 @@ private fun EditLimitDialog(
                 }
 
                 if (hasError) {
+
                     Spacer(Modifier.height(8.dp))
 
                     Text(
@@ -425,6 +478,8 @@ private fun EditLimitDialog(
         }
     )
 }
+
+// ---------- Preview ----------
 
 @Preview(showBackground = true)
 @Composable

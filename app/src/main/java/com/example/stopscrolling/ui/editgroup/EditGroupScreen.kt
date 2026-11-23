@@ -28,7 +28,10 @@ fun EditGroupScreen(
     initialLimitType: LimitType,
     availableApps: List<InstalledApp>,
     onBack: () -> Unit,
-    onSave: (Int, String, List<String>, Int, LimitType) -> Unit
+    onSave: (Int, String, List<String>, Int, LimitType) -> Unit,
+    onDelete: (Int) -> Unit = {},
+    isSaving: Boolean = false,
+    hasSaveError: Boolean = false
 ) {
     var name by remember(groupId) {
         mutableStateOf(initialName)
@@ -47,6 +50,10 @@ fun EditGroupScreen(
     }
 
     var expanded by remember {
+        mutableStateOf(false)
+    }
+
+    var showDeleteDialog by remember(groupId) {
         mutableStateOf(false)
     }
 
@@ -71,34 +78,127 @@ fun EditGroupScreen(
         600 to stringResource(R.string.ten_hours)
     )
 
+    // ---------- Delete Confirmation Dialog ----------
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isSaving) {
+                    showDeleteDialog = false
+                }
+            },
+            title = {
+                Text("Delete Group?")
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete \"$initialName\"? " +
+                            "This will remove the group and its associated apps. " +
+                            "If an active Hard Limit applies, deletion will be " +
+                            "postponed until 00:00 tomorrow."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        onDelete(groupId)
+                    },
+                    enabled = !isSaving
+                ) {
+                    Text(
+                        "Delete",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                    },
+                    enabled = !isSaving
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // ---------- Main Screen ----------
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Edit Group") },
+                title = {
+                    Text("Edit Group")
+                },
                 navigationIcon = {
-                    TextButton(onClick = onBack) {
+                    TextButton(
+                        onClick = onBack,
+                        enabled = !isSaving
+                    ) {
                         Text(stringResource(R.string.back))
                     }
                 }
             )
         },
         bottomBar = {
-            Button(
-                onClick = {
-                    onSave(
-                        groupId,
-                        name.trim(),
-                        selectedPackages.toList(),
-                        timeLimit,
-                        limitType
-                    )
-                },
-                enabled = false, // Enable in US-09 Task 2
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(stringResource(R.string.save))
+
+                // Show error when saving fails.
+                if (hasSaveError) {
+                    Text(
+                        text = "Unable to save changes. " +
+                                "Please check the group settings.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                // ---------- Save Button ----------
+
+                Button(
+                    onClick = {
+                        onSave(
+                            groupId,
+                            name.trim(),
+                            selectedPackages.toList(),
+                            timeLimit,
+                            limitType
+                        )
+                    },
+                    enabled = !isSaving &&
+                            name.isNotBlank() &&
+                            selectedPackages.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (isSaving) {
+                            stringResource(R.string.saving)
+                        } else {
+                            stringResource(R.string.save)
+                        }
+                    )
+                }
+
+                // ---------- Delete Group Button ----------
+
+                OutlinedButton(
+                    onClick = {
+                        showDeleteDialog = true
+                    },
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Delete Group")
+                }
             }
         }
     ) { padding ->
@@ -109,10 +209,15 @@ fun EditGroupScreen(
                 .padding(horizontal = 16.dp)
                 .fillMaxSize()
         ) {
-            // Group name
+
+            // ---------- Group Name ----------
+
             OutlinedTextField(
                 value = name,
-                onValueChange = { name = it },
+                onValueChange = {
+                    name = it
+                },
+                enabled = !isSaving,
                 label = {
                     Text(stringResource(R.string.group_name))
                 },
@@ -122,7 +227,8 @@ fun EditGroupScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Time limit dropdown
+            // ---------- Daily Time Limit ----------
+
             Text(
                 text = stringResource(R.string.daily_time_limit),
                 style = MaterialTheme.typography.titleSmall
@@ -132,7 +238,11 @@ fun EditGroupScreen(
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
-                onExpandedChange = { expanded = it }
+                onExpandedChange = {
+                    if (!isSaving) {
+                        expanded = it
+                    }
+                }
             ) {
                 OutlinedTextField(
                     value = timeOptions.find {
@@ -144,6 +254,7 @@ fun EditGroupScreen(
                     ),
                     onValueChange = {},
                     readOnly = true,
+                    enabled = !isSaving,
                     label = {
                         Text(stringResource(R.string.time_limit))
                     },
@@ -161,11 +272,15 @@ fun EditGroupScreen(
 
                 ExposedDropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = {
+                        expanded = false
+                    }
                 ) {
                     timeOptions.forEach { (minutes, label) ->
                         DropdownMenuItem(
-                            text = { Text(label) },
+                            text = {
+                                Text(label)
+                            },
                             onClick = {
                                 timeLimit = minutes
                                 expanded = false
@@ -177,7 +292,8 @@ fun EditGroupScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Hard / Soft limit
+            // ---------- Limit Type ----------
+
             Text(
                 text = stringResource(R.string.limit_type),
                 style = MaterialTheme.typography.titleSmall
@@ -188,7 +304,10 @@ fun EditGroupScreen(
             ) {
                 FilterChip(
                     selected = limitType == LimitType.HARD,
-                    onClick = { limitType = LimitType.HARD },
+                    onClick = {
+                        limitType = LimitType.HARD
+                    },
+                    enabled = !isSaving,
                     label = {
                         Text(stringResource(R.string.hard_limit))
                     }
@@ -196,7 +315,10 @@ fun EditGroupScreen(
 
                 FilterChip(
                     selected = limitType == LimitType.SOFT,
-                    onClick = { limitType = LimitType.SOFT },
+                    onClick = {
+                        limitType = LimitType.SOFT
+                    },
+                    enabled = !isSaving,
                     label = {
                         Text(stringResource(R.string.soft_limit))
                     }
@@ -205,7 +327,8 @@ fun EditGroupScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Installed apps
+            // ---------- Select Apps ----------
+
             Text(
                 text = stringResource(R.string.select_apps),
                 style = MaterialTheme.typography.titleSmall
@@ -224,6 +347,7 @@ fun EditGroupScreen(
                             .fillMaxWidth()
                             .toggleable(
                                 value = app.packageName in selectedPackages,
+                                enabled = !isSaving,
                                 role = Role.Checkbox,
                                 onValueChange = {
                                     selectedPackages =
@@ -237,6 +361,7 @@ fun EditGroupScreen(
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+
                         AndroidView(
                             factory = { context ->
                                 ImageView(context)
@@ -256,7 +381,8 @@ fun EditGroupScreen(
 
                         Checkbox(
                             checked = app.packageName in selectedPackages,
-                            onCheckedChange = null
+                            onCheckedChange = null,
+                            enabled = !isSaving
                         )
                     }
                 }

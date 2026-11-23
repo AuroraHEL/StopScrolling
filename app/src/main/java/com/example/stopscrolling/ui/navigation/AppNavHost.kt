@@ -34,8 +34,6 @@ object Routes {
     const val PERMISSION = "permission"
     const val DASHBOARD = "dashboard"
     const val NEW_GROUP = "new_group"
-
-    // US-09: Edit an existing group
     const val EDIT_GROUP = "edit_group/{groupId}"
 
     fun editGroup(groupId: Int): String {
@@ -52,10 +50,11 @@ fun AppNavHost(
         startDestination = Routes.PERMISSION
     ) {
 
-        // Permission Screen
+        // ---------- Permission Screen ----------
+
         composable(Routes.PERMISSION) {
             Box(
-                Modifier
+                modifier = Modifier
                     .fillMaxSize()
                     .safeDrawingPadding()
             ) {
@@ -72,12 +71,18 @@ fun AppNavHost(
             }
         }
 
-        // Dashboard Screen
+        // ---------- Dashboard Screen ----------
+
         composable(Routes.DASHBOARD) {
+
             val viewModel: DashboardViewModel =
                 viewModel(factory = DashboardViewModel.Factory)
 
-            val groups by viewModel.groups.collectAsStateWithLifecycle()
+            val groups by
+            viewModel.groups.collectAsStateWithLifecycle()
+
+            val pendingChanges by
+            viewModel.pendingChanges.collectAsStateWithLifecycle()
 
             val isUpdatingLimit by
             viewModel.isUpdatingLimit.collectAsStateWithLifecycle()
@@ -87,22 +92,33 @@ fun AppNavHost(
 
             DashboardScreen(
                 groups = groups,
+                pendingChanges = pendingChanges,
+
                 onNewGroupClick = {
                     navController.navigate(Routes.NEW_GROUP)
                 },
+
                 onEditGroupClick = { groupId ->
-                    navController.navigate(Routes.editGroup(groupId))
+                    navController.navigate(
+                        Routes.editGroup(groupId)
+                    )
                 },
+
                 onUpdateLimit = viewModel::updateLimit,
+
                 isUpdatingLimit = isUpdatingLimit,
+
                 limitUpdateError = limitUpdateError,
+
                 onClearLimitUpdateError =
                     viewModel::clearLimitUpdateError
             )
         }
 
-        // New Group Screen
+        // ---------- New Group Screen ----------
+
         composable(Routes.NEW_GROUP) {
+
             val viewModel: NewGroupViewModel =
                 viewModel(factory = NewGroupViewModel.Factory)
 
@@ -114,7 +130,8 @@ fun AppNavHost(
             )
         }
 
-        // US-09 Task 1: Edit Group Screen
+        // ---------- Edit Group Screen ----------
+
         composable(
             route = Routes.EDIT_GROUP,
             arguments = listOf(
@@ -133,14 +150,22 @@ fun AppNavHost(
             val groups by dashboardViewModel.groups
                 .collectAsStateWithLifecycle()
 
+            // US-09: Observe Save status.
+            val isUpdatingGroup by dashboardViewModel
+                .isUpdatingGroup.collectAsStateWithLifecycle()
+
+            val updateGroupError by dashboardViewModel
+                .updateGroupError.collectAsStateWithLifecycle()
+
             val group = groups.find {
                 it.group.id == groupId
             }
 
             val context = LocalContext.current
-            val app = context.applicationContext as StopScrollingApp
 
-            // Load installed apps with names and icons
+            val app =
+                context.applicationContext as StopScrollingApp
+
             var availableApps by remember {
                 mutableStateOf<List<InstalledApp>>(emptyList())
             }
@@ -150,7 +175,9 @@ fun AppNavHost(
                     app.installedAppsRepository
                         .getInstalledApps()
                         .sortedWith(
-                            compareBy(String.CASE_INSENSITIVE_ORDER) {
+                            compareBy(
+                                String.CASE_INSENSITIVE_ORDER
+                            ) {
                                 it.name
                             }
                         )
@@ -158,22 +185,60 @@ fun AppNavHost(
             }
 
             if (group != null) {
+
                 EditGroupScreen(
                     groupId = groupId,
+
                     initialName = group.group.name,
+
                     initialPackages = group.apps.map {
                         it.packageName
                     },
+
                     initialTimeLimit = group.group.timeLimit,
+
                     initialLimitType = group.group.limitType,
+
                     availableApps = availableApps,
+
                     onBack = {
                         navController.popBackStack()
                     },
-                    onSave = { _, _, _, _, _ ->
-                        // US-09 Task 2:
-                        // Connect updateGroup() here later.
-                    }
+
+                    // US-09: Save edited group.
+                    onSave = {
+                            selectedGroupId,
+                            name,
+                            packageNames,
+                            timeLimit,
+                            limitType ->
+
+                        dashboardViewModel.updateGroup(
+                            groupId = selectedGroupId,
+                            name = name,
+                            packageNames = packageNames,
+                            timeLimit = timeLimit,
+                            limitType = limitType,
+                            onSuccess = {
+                                navController.popBackStack()
+                            }
+                        )
+                    },
+
+                    // US-09: Delete group.
+                    onDelete = { selectedGroupId ->
+                        dashboardViewModel.deleteGroup(
+                            groupId = selectedGroupId,
+                            onSuccess = {
+                                navController.popBackStack()
+                            }
+                        )
+                    },
+
+                    // US-09 Step 9.3:
+                    // Saving and error states.
+                    isSaving = isUpdatingGroup,
+                    hasSaveError = updateGroupError
                 )
             }
         }
