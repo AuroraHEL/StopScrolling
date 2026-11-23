@@ -214,6 +214,8 @@ class DashboardViewModelTest {
             return updateResult
         }
 
+        override suspend fun applyDuePendingChanges(): Int = 0
+
         fun setGroups(groups: List<GroupWithApps>) {
             groupsFlow.value = groups
         }
