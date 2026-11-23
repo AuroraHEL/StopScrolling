@@ -17,11 +17,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,6 +53,11 @@ import com.example.stopscrolling.ui.theme.StopScrollingTheme
 fun DashboardScreen(
     groups: List<GroupWithApps>,
     onNewGroupClick: () -> Unit,
+
+    // US-09: Navigate to Edit Group screen
+    onEditGroupClick: (Int) -> Unit = {},
+
+    // Existing Edit Limit functionality
     onUpdateLimit: (Int, Int, LimitType, () -> Unit) -> Unit =
         { _, _, _, _ -> },
     isUpdatingLimit: Boolean = false,
@@ -115,6 +120,9 @@ fun DashboardScreen(
                             onEditLimitClick = {
                                 onClearLimitUpdateError()
                                 editingGroup = item
+                            },
+                            onEditGroupClick = {
+                                onEditGroupClick(item.group.id)
                             }
                         )
                     }
@@ -123,6 +131,7 @@ fun DashboardScreen(
         }
     }
 
+    // Existing Edit Limit dialog
     editingGroup?.let { item ->
         EditLimitDialog(
             currentTimeLimit = item.group.timeLimit,
@@ -151,7 +160,8 @@ fun DashboardScreen(
 @Composable
 private fun GroupCard(
     item: GroupWithApps,
-    onEditLimitClick: () -> Unit
+    onEditLimitClick: () -> Unit,
+    onEditGroupClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -215,10 +225,21 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
-            OutlinedButton(
-                onClick = onEditLimitClick
+            // US-09: Edit Group button next to Edit Limit
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(stringResource(R.string.edit_limit))
+                OutlinedButton(
+                    onClick = onEditLimitClick
+                ) {
+                    Text(stringResource(R.string.edit_limit))
+                }
+
+                OutlinedButton(
+                    onClick = onEditGroupClick
+                ) {
+                    Text("Edit Group")
+                }
             }
         }
     }
