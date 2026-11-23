@@ -7,9 +7,11 @@ import com.example.stopscrolling.data.AppDatabase
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.AppGroupRepositoryImpl
+import java.util.Calendar
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -121,11 +123,12 @@ class AppGroupRepositoryTest {
         try {
             val repository = AppGroupRepositoryImpl(db)
 
+            // A soft limit changes at once. A change to a hard limit waits until midnight (US-15).
             val groupId = repository.createGroup(
                 name = "Social Media",
                 packageNames = listOf("com.instagram.android"),
                 timeLimit = 60,
-                limitType = LimitType.HARD
+                limitType = LimitType.SOFT
             )
 
             val updated = repository.updateLimit(
@@ -201,4 +204,169 @@ class AppGroupRepositoryTest {
         }
     }
 
+    // ---------- US-15: pending changes of a hard limit ----------
+
+    // A time of November 2026 in the time zone of the phone, like the repository uses
+    private fun timeOf(day: Int, hour: Int, minute: Int): Long {
+        val calendar = Calendar.getInstance()
+        calendar.set(2026, Calendar.NOVEMBER, day, hour, minute, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
+
+    @Test
+    fun updateLimit_hardLimit_isSavedAsPending() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            val repository = AppGroupRepositoryImpl(db) { timeOf(23, 14, 0) }
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf("com.instagram.android"),
+                timeLimit = 60,
+                limitType = LimitType.HARD
+            )
+
+            val updated = repository.updateLimit(groupId, 30, LimitType.SOFT)
+
+            assertTrue(updated)
+            val group = repository.observeGroups().first()[0].group
+            // The current limit stays active
+            assertEquals(60, group.timeLimit)
+            assertEquals(LimitType.HARD, group.limitType)
+            // The new limit waits for midnight
+            assertEquals(30, group.pendingTimeLimit)
+            assertEquals(LimitType.SOFT, group.pendingLimitType)
+            assertEquals(timeOf(24, 0, 0), group.pendingFrom)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun applyDuePendingChanges_atMidnight_appliesTheChange() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            var now = timeOf(23, 14, 0)
+            val repository = AppGroupRepositoryImpl(db) { now }
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf("com.instagram.android"),
+                timeLimit = 60,
+                limitType = LimitType.HARD
+            )
+            repository.updateLimit(groupId, 30, LimitType.SOFT)
+
+            now = timeOf(24, 0, 0)
+            val changedGroups = repository.applyDuePendingChanges()
+
+            assertEquals(1, changedGroups)
+            val group = repository.observeGroups().first()[0].group
+            assertEquals(30, group.timeLimit)
+            assertEquals(LimitType.SOFT, group.limitType)
+            assertNull(group.pendingTimeLimit)
+            assertNull(group.pendingLimitType)
+            assertNull(group.pendingFrom)
+            // Nothing is left to apply
+            assertEquals(0, repository.applyDuePendingChanges())
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun applyDuePendingChanges_beforeMidnight_keepsTheChangeWaiting() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            var now = timeOf(23, 14, 0)
+            val repository = AppGroupRepositoryImpl(db) { now }
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf("com.instagram.android"),
+                timeLimit = 60,
+                limitType = LimitType.HARD
+            )
+            repository.updateLimit(groupId, 30, LimitType.SOFT)
+
+            now = timeOf(23, 23, 59)
+            val changedGroups = repository.applyDuePendingChanges()
+
+            assertEquals(0, changedGroups)
+            val group = repository.observeGroups().first()[0].group
+            assertEquals(60, group.timeLimit)
+            assertEquals(30, group.pendingTimeLimit)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun updateLimit_afterMidnightWithoutApplying_appliesThePendingChangeFirst() = runBlocking {
+        val db = createDatabase()
+
+        try {
+            var now = timeOf(23, 14, 0)
+            val repository = AppGroupRepositoryImpl(db) { now }
+            val groupId = repository.createGroup(
+                name = "Social Media",
+                packageNames = listOf("com.instagram.android"),
+                timeLimit = 60,
+                limitType = LimitType.HARD
+            )
+            repository.updateLimit(groupId, 30, LimitType.SOFT)
+
+            // The service did not run at midnight. The user edits the group the next morning.
+            now = timeOf(24, 8, 0)
+            repository.updateLimit(groupId, 90, LimitType.SOFT)
+
+            // The old pending change became the current limit, so this edit (soft) works at once
+            val group = repository.observeGroups().first()[0].group
+            assertEquals(90, group.timeLimit)
+            assertEquals(LimitType.SOFT, group.limitType)
+            assertNull(group.pendingTimeLimit)
+        } finally {
+            db.close()
+        }
+    }
+
+    @Test
+    fun pendingChange_survivesClosingTheDatabase() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val dbName = "pending-change-test.db"
+        context.deleteDatabase(dbName)
+
+        try {
+            // First start: the user edits a hard limit
+            val firstDb = Room.databaseBuilder(context, AppDatabase::class.java, dbName).build()
+            val groupId = try {
+                val repository = AppGroupRepositoryImpl(firstDb) { timeOf(23, 14, 0) }
+                val id = repository.createGroup(
+                    name = "Social Media",
+                    packageNames = listOf("com.instagram.android"),
+                    timeLimit = 60,
+                    limitType = LimitType.HARD
+                )
+                repository.updateLimit(id, 30, LimitType.HARD)
+                id
+            } finally {
+                firstDb.close()
+            }
+
+            // Second start (like after a restart of the phone): the pending change is still there
+            val secondDb = Room.databaseBuilder(context, AppDatabase::class.java, dbName).build()
+            try {
+                val group = AppGroupRepositoryImpl(secondDb).observeGroups().first()[0].group
+                assertEquals(groupId, group.id)
+                assertEquals(60, group.timeLimit)
+                assertEquals(30, group.pendingTimeLimit)
+                assertEquals(timeOf(24, 0, 0), group.pendingFrom)
+            } finally {
+                secondDb.close()
+            }
+        } finally {
+            context.deleteDatabase(dbName)
+        }
+    }
 }
