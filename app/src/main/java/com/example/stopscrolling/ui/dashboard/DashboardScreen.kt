@@ -1,5 +1,6 @@
 package com.example.stopscrolling.ui.dashboard
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.data.PendingLimits
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,8 +127,11 @@ fun DashboardScreen(
 
     editingGroup?.let { item ->
         EditLimitDialog(
-            currentTimeLimit = item.group.timeLimit,
-            currentLimitType = item.group.limitType,
+            // If a change is already waiting, the dialog starts with it (the latest edit)
+            currentTimeLimit = item.group.pendingTimeLimit ?: item.group.timeLimit,
+            currentLimitType = item.group.pendingLimitType ?: item.group.limitType,
+            // US-15: a change to a hard limit starts only at midnight
+            showNextDayNotice = PendingLimits.isUnderHardLimit(item.group),
             isSaving = isUpdatingLimit,
             hasError = limitUpdateError,
             onDismiss = {
@@ -175,43 +180,38 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
-            val limitText = when (item.group.timeLimit) {
-                0 -> stringResource(R.string.no_limit)
-                60 -> stringResource(R.string.one_hour)
-                90 -> stringResource(R.string.one_hour_thirty_minutes)
-                120 -> stringResource(R.string.two_hours)
-                180 -> stringResource(R.string.three_hours)
-                240 -> stringResource(R.string.four_hours)
-                300 -> stringResource(R.string.five_hours)
-                360 -> stringResource(R.string.six_hours)
-                480 -> stringResource(R.string.eight_hours)
-                600 -> stringResource(R.string.ten_hours)
-                else -> pluralStringResource(
-                    R.plurals.minutes_count,
-                    item.group.timeLimit,
-                    item.group.timeLimit
-                )
-            }
-
-            val typeText =
-                if (item.group.limitType == LimitType.HARD) {
-                    stringResource(R.string.hard)
-                } else {
-                    stringResource(R.string.soft)
-                }
-
             Text(
-                text = if (item.group.timeLimit == 0) {
-                    stringResource(R.string.daily_limit_no_limit)
-                } else {
-                    stringResource(
-                        R.string.daily_limit_with_type,
-                        limitText,
-                        typeText
-                    )
-                },
+                text = limitSummary(
+                    minutes = item.group.timeLimit,
+                    limitType = item.group.limitType,
+                    withTypeRes = R.string.daily_limit_with_type,
+                    noLimitRes = R.string.daily_limit_no_limit
+                ),
                 style = MaterialTheme.typography.bodySmall
             )
+
+            // US-15: a change of the hard limit is waiting for midnight
+            val pendingMinutes = item.group.pendingTimeLimit
+            val pendingType = item.group.pendingLimitType
+            if (pendingMinutes != null && pendingType != null) {
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = limitSummary(
+                        minutes = pendingMinutes,
+                        limitType = pendingType,
+                        withTypeRes = R.string.pending_limit_with_type,
+                        noLimitRes = R.string.pending_limit_no_limit
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Text(
+                    text = stringResource(R.string.pending_takes_effect),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Spacer(Modifier.height(8.dp))
 
@@ -229,6 +229,7 @@ private fun GroupCard(
 private fun EditLimitDialog(
     currentTimeLimit: Int,
     currentLimitType: LimitType,
+    showNextDayNotice: Boolean,
     isSaving: Boolean,
     hasError: Boolean,
     onDismiss: () -> Unit,
@@ -367,6 +368,15 @@ private fun EditLimitDialog(
                     )
                 }
 
+                if (showNextDayNotice) {
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = stringResource(R.string.hard_limit_change_notice),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 if (hasError) {
                     Spacer(Modifier.height(8.dp))
 
@@ -403,6 +413,45 @@ private fun EditLimitDialog(
             }
         }
     )
+}
+
+// Text of a time limit in minutes, for example "2 hours"
+@Composable
+private fun limitLabel(minutes: Int): String {
+    return when (minutes) {
+        0 -> stringResource(R.string.no_limit)
+        60 -> stringResource(R.string.one_hour)
+        90 -> stringResource(R.string.one_hour_thirty_minutes)
+        120 -> stringResource(R.string.two_hours)
+        180 -> stringResource(R.string.three_hours)
+        240 -> stringResource(R.string.four_hours)
+        300 -> stringResource(R.string.five_hours)
+        360 -> stringResource(R.string.six_hours)
+        480 -> stringResource(R.string.eight_hours)
+        600 -> stringResource(R.string.ten_hours)
+        else -> pluralStringResource(R.plurals.minutes_count, minutes, minutes)
+    }
+}
+
+// One line for a limit, for example "Daily limit: 1 hour (Hard)" or "Daily limit: No limit".
+// The same function writes the current limit and the pending limit: only the strings change.
+@Composable
+private fun limitSummary(
+    minutes: Int,
+    limitType: LimitType,
+    @StringRes withTypeRes: Int,
+    @StringRes noLimitRes: Int
+): String {
+    return if (minutes == 0) {
+        stringResource(noLimitRes)
+    } else {
+        val typeText = if (limitType == LimitType.HARD) {
+            stringResource(R.string.hard)
+        } else {
+            stringResource(R.string.soft)
+        }
+        stringResource(withTypeRes, limitLabel(minutes), typeText)
+    }
 }
 
 @Preview(showBackground = true)
