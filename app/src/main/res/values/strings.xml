@@ -40,6 +40,12 @@
     <string name="saving">Saving...</string>
     <string name="limit_update_error">Could not save changes. Please try again.</string>
 
+    <!-- Pending limit changes (US-15) -->
+    <string name="pending_limit_with_type">Pending limit: %1$s (%2$s)</string>
+    <string name="pending_limit_no_limit">Pending limit: No limit</string>
+    <string name="pending_takes_effect">Takes effect tomorrow at 00:00</string>
+    <string name="hard_limit_change_notice">This group has a hard limit, so your changes take effect tomorrow at 00:00. Until then, the current limit stays active.</string>
+
     <string name="math_quiz_title">Solve to Unlock +%1$dm</string>
     <string name="math_quiz_subtitle">Enter the correct answer to extend your limit by %1$d minutes.</string>
     <string name="your_answer">Your answer</string>

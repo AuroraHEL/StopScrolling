@@ -30,4 +30,20 @@ object DayBoundary {
         calendar.set(Calendar.MILLISECOND, 0)
         return calendar.timeInMillis
     }
+
+    /*
+     * Returns the start of the next day (00:00 of tomorrow), in milliseconds since the epoch.
+     * US-15 uses it as the moment when a pending change of a hard limit starts.
+     * We add one calendar day, not 24 hours, because a day can have 23 or 25 hours
+     * when the clocks change.
+     */
+    fun startOfNextDayMillis(
+        nowMillis: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Long {
+        val calendar = Calendar.getInstance(timeZone)
+        calendar.timeInMillis = startOfDayMillis(nowMillis, timeZone)
+        calendar.add(Calendar.DAY_OF_YEAR, 1)
+        return calendar.timeInMillis
+    }
 }

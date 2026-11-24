@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AppGroup::class,
         GroupApp::class,
         TimeExtension::class,
+        DailyUsage::class,
         PendingGroupChange::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(LimitTypeConverter::class)
@@ -58,7 +59,37 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // Sprint 3: new columns for the pending changes (US-15, US-13)
+        // and the new table for the daily totals (US-27).
+        // Old rows are kept: every new column has a default value or can be NULL.
         val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // US-15: pending limit change (NULL = no pending change)
+                db.execSQL("ALTER TABLE app_groups ADD COLUMN pendingTimeLimit INTEGER")
+                db.execSQL("ALTER TABLE app_groups ADD COLUMN pendingLimitType TEXT")
+                db.execSQL("ALTER TABLE app_groups ADD COLUMN pendingFrom INTEGER")
+
+                // US-13: weekly limit (0 = no weekly limit) and its pending change
+                db.execSQL(
+                    "ALTER TABLE app_groups ADD COLUMN weeklyLimit INTEGER NOT NULL DEFAULT 0"
+                )
+                db.execSQL("ALTER TABLE app_groups ADD COLUMN pendingWeeklyLimit INTEGER")
+
+                // US-27: total usage of each finished day
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS daily_usage (
+                        dayStartMillis INTEGER NOT NULL,
+                        totalMillis INTEGER NOT NULL,
+                        PRIMARY KEY(dayStartMillis)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        // US-09: postponed group deletion and app removal
+        val MIGRATION_4_5 = object : Migration(4, 5) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
                     """
@@ -82,8 +113,8 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        fun getInstance(context: Context): AppDatabase {
-            return instance ?: synchronized(this) {
+        fun getInstance(context: Context): AppDatabase =
+            instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
@@ -92,11 +123,11 @@ abstract class AppDatabase : RoomDatabase() {
                     .addMigrations(
                         MIGRATION_1_2,
                         MIGRATION_2_3,
-                        MIGRATION_3_4
+                        MIGRATION_3_4,
+                        MIGRATION_4_5
                     )
                     .build()
                     .also { instance = it }
             }
-        }
     }
 }

@@ -32,6 +32,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /*
  * Foreground service that checks which app is on the screen.
@@ -39,8 +41,8 @@ import kotlinx.coroutines.withContext
  * It tracks usage, evaluates limits, and shows the hard
  * or soft overlay when a limit is reached.
  *
- * US-09 Task 3:
- * Also processes pending group deletions and app removals.
+ * US-09: Processes pending group deletions and app removals.
+ * US-15: Applies pending hard limit changes.
  */
 class UsageMonitorService : Service() {
 
@@ -73,10 +75,19 @@ class UsageMonitorService : Service() {
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // Prevent simultaneous pending change processing.
+    private val pendingChangesMutex = Mutex()
+
+    // US-09 and US-15: Process pending changes at midnight.
+    private val dateChangeReceiver = DateChangeReceiver {
+        serviceScope.launch {
+            processPendingChanges()
+        }
+    }
+
     @Volatile
     private var currentGroups: List<RegulatedGroup> = emptyList()
 
-    // US-09: Remember the last opened app for refreshing groups.
     @Volatile
     private var currentPackageName: String? = null
 
@@ -84,8 +95,12 @@ class UsageMonitorService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
         tracker = UsageTracker(this)
+
         createNotificationChannel()
+
+        dateChangeReceiver.register(this)
     }
 
     override fun onStartCommand(
@@ -100,11 +115,14 @@ class UsageMonitorService : Service() {
         )
 
         if (!hasUsageStatsPermission(this)) {
+
             Log.w(
                 TAG,
                 "Usage access is not granted: the service stops"
             )
+
             stopSelf()
+
             return START_NOT_STICKY
         }
 
@@ -118,8 +136,13 @@ class UsageMonitorService : Service() {
     }
 
     override fun onDestroy() {
+
+        dateChangeReceiver.unregister(this)
+
         serviceScope.cancel()
+
         hideOverlayNow()
+
         super.onDestroy()
     }
 
@@ -134,17 +157,13 @@ class UsageMonitorService : Service() {
 
         var lastEventTime = System.currentTimeMillis()
 
-        // US-09: Process overdue changes at service startup.
-        try {
-            processPendingChanges()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Log.e(TAG, "Cannot process pending changes at startup", e)
-        }
+        // US-09 and US-15:
+        // Process overdue changes at service startup.
+        processPendingChanges()
 
         // Restore the foreground app after service restart.
         try {
+
             val lastEvent = tracker
                 .readForegroundEvents(
                     lastEventTime - STARTUP_LOOKBACK_MS,
@@ -153,13 +172,18 @@ class UsageMonitorService : Service() {
                 .lastOrNull()
 
             if (lastEvent != null && lastEvent.isResumed) {
+
                 detector.process(listOf(lastEvent))
+
                 handleOpenedApp(lastEvent.packageName)
             }
 
         } catch (e: CancellationException) {
+
             throw e
+
         } catch (e: Exception) {
+
             Log.e(
                 TAG,
                 "Cannot find the app on the screen at startup",
@@ -169,16 +193,22 @@ class UsageMonitorService : Service() {
 
         var nextLimitCheckAt = 0L
 
-        // US-09: First check runs immediately.
-        var nextPendingCheckAt = 0L
+        // Periodic fallback for pending changes.
+        var nextPendingCheckAt =
+            System.currentTimeMillis() + PENDING_CHECK_INTERVAL_MS
 
         while (true) {
+
             try {
+
                 val now = System.currentTimeMillis()
 
-                // US-09: Check pending changes periodically.
+                // US-09 and US-15:
+                // Check pending changes periodically.
                 if (now >= nextPendingCheckAt) {
+
                     processPendingChanges()
+
                     nextPendingCheckAt =
                         now + PENDING_CHECK_INTERVAL_MS
                 }
@@ -190,21 +220,28 @@ class UsageMonitorService : Service() {
                     }
 
                 if (newEvents.isNotEmpty()) {
+
                     lastEventTime = newEvents.last().timestamp
 
                     for (packageName in detector.process(newEvents)) {
+
                         handleOpenedApp(packageName)
+
                         nextLimitCheckAt = 0L
                     }
                 }
 
                 if (now >= nextLimitCheckAt) {
+
                     nextLimitCheckAt = now + checkLimits()
                 }
 
             } catch (e: CancellationException) {
+
                 throw e
+
             } catch (e: Exception) {
+
                 Log.e(
                     TAG,
                     "Error while checking the active app",
@@ -223,32 +260,91 @@ class UsageMonitorService : Service() {
         }
     }
 
-    // US-09 Task 3: Execute due group changes.
+    // ---------- Pending changes (US-09 and US-15) ----------
+
     private suspend fun processPendingChanges() {
 
-        val processed =
-            appGroupRepository.processDueChanges(
-                System.currentTimeMillis()
-            )
+        pendingChangesMutex.withLock {
 
-        if (processed <= 0) return
+            try {
 
-        Log.d(
-            TAG,
-            "Processed $processed pending group changes"
-        )
+                // US-09:
+                // Execute scheduled group deletions and app removals.
+                val processedGroupChanges =
+                    appGroupRepository.processDueChanges(
+                        System.currentTimeMillis()
+                    )
 
-        // Refresh the groups of the current app.
+                // US-15:
+                // Apply scheduled hard limit changes.
+                val processedLimitChanges =
+                    appGroupRepository.applyDuePendingChanges()
+
+                if (
+                    processedGroupChanges > 0 ||
+                    processedLimitChanges > 0
+                ) {
+
+                    Log.d(
+                        TAG,
+                        "Processed $processedGroupChanges pending group changes " +
+                                "and $processedLimitChanges pending limit changes"
+                    )
+
+                    // Refresh the groups of the current app.
+                    refreshCurrentGroups()
+
+                    // Re-evaluate the overlay after changes.
+                    checkLimits()
+                }
+
+            } catch (e: CancellationException) {
+
+                throw e
+
+            } catch (e: Exception) {
+
+                Log.e(
+                    TAG,
+                    "Cannot process pending changes",
+                    e
+                )
+            }
+        }
+    }
+
+    // Refresh groups so that deletions, app removals,
+    // and new limits are reflected immediately.
+    private suspend fun refreshCurrentGroups() {
+
         val packageName = currentPackageName
 
-        if (packageName != null) {
-            handleOpenedApp(packageName)
-        } else {
+        if (packageName == null) {
+
             currentGroups = emptyList()
+
+            updateNotification(DEFAULT_TEXT)
+
+            return
         }
 
-        // Re-evaluate the overlay after group changes.
-        checkLimits()
+        val groups = groupLookup.findGroupsOf(packageName)
+
+        // The foreground app may have changed during the lookup.
+        if (currentPackageName != packageName) return
+
+        currentGroups = groups
+
+        if (groups.isEmpty()) {
+
+            updateNotification(DEFAULT_TEXT)
+
+        } else {
+
+            updateNotification(
+                "Regulated app opened: $packageName"
+            )
+        }
     }
 
     private suspend fun handleOpenedApp(
@@ -258,10 +354,15 @@ class UsageMonitorService : Service() {
         currentPackageName = packageName
 
         val groups = groupLookup.findGroupsOf(packageName)
+
+        if (currentPackageName != packageName) return
+
         currentGroups = groups
 
         if (groups.isEmpty()) {
+
             updateNotification(DEFAULT_TEXT)
+
             return
         }
 
@@ -270,6 +371,7 @@ class UsageMonitorService : Service() {
         )
 
         for (group in groups) {
+
             val usageToday =
                 tracker.getTodayUsageForPackages(
                     group.packageNames
@@ -299,13 +401,16 @@ class UsageMonitorService : Service() {
         val groups = currentGroups
 
         if (groups.isEmpty()) {
+
             withContext(Dispatchers.Main) {
                 hideOverlayNow()
             }
+
             return LimitEvaluator.SLOW_CHECK_MILLIS
         }
 
         val states = groups.map { group ->
+
             GroupLimitState(
                 group = group,
                 usedMillis =
@@ -320,12 +425,17 @@ class UsageMonitorService : Service() {
         }
 
         val result = LimitEvaluator.evaluate(states)
+
         val decision = result.decision
 
         withContext(Dispatchers.Main) {
+
             if (decision == null) {
+
                 hideOverlayNow()
+
             } else {
+
                 showOverlayNow(decision)
             }
         }
@@ -352,29 +462,37 @@ class UsageMonitorService : Service() {
         if (
             shown != null &&
             shown.groupId == request.groupId &&
-            shown.limitType == request.limitType
+            shown.limitType == request.limitType &&
+            shown.limitMinutes == request.limitMinutes
         ) {
+
             return
         }
 
         hideOverlayNow()
 
         val ok = overlayManager.show {
+
             StopScrollingTheme {
+
                 OverlayContent(
                     request = request,
                     onGoHome = ::onOverlayGoHome,
                     onExtensionGranted = ::onExtensionGranted,
                     challengeContent = { onSolved, onCancel ->
+
                         MathQuizDialog(
                             onDismiss = onCancel,
                             onQuizSolved = {
+
                                 serviceScope.launch {
+
                                     (application as StopScrollingApp)
                                         .extensionRepository
                                         .grantExtension(
                                             groupId = request.groupId
                                         )
+
                                     onSolved()
                                 }
                             }
@@ -385,8 +503,11 @@ class UsageMonitorService : Service() {
         }
 
         if (ok) {
+
             shownRequest = request
+
         } else {
+
             Log.w(
                 TAG,
                 "Overlay not shown: is the display over other apps permission granted?"
@@ -395,8 +516,11 @@ class UsageMonitorService : Service() {
     }
 
     private fun hideOverlayNow() {
+
         if (shownRequest == null) return
+
         overlayManager.hide()
+
         shownRequest = null
     }
 
@@ -407,30 +531,42 @@ class UsageMonitorService : Service() {
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         return try {
+
             startActivity(home)
+
             true
+
         } catch (e: RuntimeException) {
+
             Log.e(
                 TAG,
                 "Cannot open the home screen",
                 e
             )
+
             false
         }
     }
 
     private fun onOverlayGoHome() {
+
         mainHandler.post {
+
             if (goToHomeScreen()) {
+
                 currentGroups = emptyList()
+
                 currentPackageName = null
+
                 hideOverlayNow()
             }
         }
     }
 
     private fun onExtensionGranted() {
+
         mainHandler.post {
+
             hideOverlayNow()
         }
     }
@@ -513,13 +649,14 @@ class UsageMonitorService : Service() {
 
         private const val POLL_SCREEN_OFF_MS = 10_000L
 
-        // US-09: Check pending changes every 30 seconds.
+        // Periodic fallback for US-09 and US-15.
         private const val PENDING_CHECK_INTERVAL_MS = 30_000L
 
         private const val STARTUP_LOOKBACK_MS =
             6 * 60 * 60 * 1000L
 
         fun start(context: Context) {
+
             ContextCompat.startForegroundService(
                 context,
                 Intent(
@@ -530,6 +667,7 @@ class UsageMonitorService : Service() {
         }
 
         fun stop(context: Context) {
+
             context.stopService(
                 Intent(
                     context,

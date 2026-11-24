@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -113,4 +114,26 @@ interface AppGroupDao {
     suspend fun deleteGroup(
         groupId: Int
     ): Int
+
+    // US-15: the whole group row, to read it,
+    // change it and save it in one transaction
+    @Query("SELECT * FROM app_groups WHERE id = :groupId")
+    suspend fun getGroup(groupId: Int): AppGroup?
+
+    // US-15: groups with changes that must start now
+    @Query(
+        """
+        SELECT * FROM app_groups
+        WHERE pendingFrom IS NOT NULL
+        AND pendingFrom <= :nowMillis
+        """
+    )
+    suspend fun getGroupsWithDuePending(
+        nowMillis: Long
+    ): List<AppGroup>
+
+    // US-15: saves the group row
+    // (the apps of the group are not changed)
+    @Update
+    suspend fun updateGroupRow(group: AppGroup): Int
 }

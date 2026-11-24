@@ -3,6 +3,7 @@ package com.example.stopscrolling.ui.dashboard
 import com.example.stopscrolling.data.AppGroup
 import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.data.PendingGroupChange
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -53,6 +54,7 @@ class DashboardViewModelTest {
         backgroundScope.launch {
             viewModel.groups.collect {}
         }
+
         runCurrent()
 
         fakeRepository.setGroups(
@@ -81,6 +83,7 @@ class DashboardViewModelTest {
         backgroundScope.launch {
             viewModel.groups.collect {}
         }
+
         runCurrent()
 
         fakeRepository.setGroups(
@@ -94,6 +97,7 @@ class DashboardViewModelTest {
                 )
             )
         )
+
         advanceUntilIdle()
 
         fakeRepository.setGroups(
@@ -114,6 +118,7 @@ class DashboardViewModelTest {
                 )
             )
         )
+
         advanceUntilIdle()
 
         assertEquals(2, viewModel.groups.value.size)
@@ -124,6 +129,7 @@ class DashboardViewModelTest {
     @Test
     fun updateLimit_success_updatesRepository() =
         runTest(testDispatcher) {
+
             fakeRepository.updateResult = true
 
             var successCalled = false
@@ -146,6 +152,7 @@ class DashboardViewModelTest {
                 LimitType.SOFT,
                 fakeRepository.updatedLimitType
             )
+
             assertTrue(successCalled)
             assertFalse(viewModel.isUpdatingLimit.value)
             assertFalse(viewModel.limitUpdateError.value)
@@ -154,6 +161,7 @@ class DashboardViewModelTest {
     @Test
     fun updateLimit_failure_showsError() =
         runTest(testDispatcher) {
+
             fakeRepository.updateResult = false
 
             var successCalled = false
@@ -176,15 +184,22 @@ class DashboardViewModelTest {
                 LimitType.HARD,
                 fakeRepository.updatedLimitType
             )
+
             assertFalse(successCalled)
             assertFalse(viewModel.isUpdatingLimit.value)
             assertTrue(viewModel.limitUpdateError.value)
         }
 
+    // ---------- Fake Repository ----------
+
     private class FakeAppGroupRepository : AppGroupRepository {
 
         private val groupsFlow =
             MutableStateFlow<List<GroupWithApps>>(emptyList())
+
+        // US-09: Pending group changes.
+        private val pendingChangesFlow =
+            MutableStateFlow<List<PendingGroupChange>>(emptyList())
 
         var updateResult = false
         var updateCount = 0
@@ -193,6 +208,9 @@ class DashboardViewModelTest {
         var updatedLimitType: LimitType? = null
 
         override fun observeGroups() = groupsFlow
+
+        // US-09
+        override fun observePendingChanges() = pendingChangesFlow
 
         override suspend fun createGroup(
             name: String,
@@ -213,6 +231,28 @@ class DashboardViewModelTest {
 
             return updateResult
         }
+
+        // US-09
+        override suspend fun updateGroup(
+            groupId: Int,
+            name: String,
+            packageNames: List<String>,
+            timeLimit: Int,
+            limitType: LimitType
+        ): Boolean = false
+
+        // US-09
+        override suspend fun deleteGroup(
+            groupId: Int
+        ): Boolean = false
+
+        // US-09
+        override suspend fun processDueChanges(
+            nowMillis: Long
+        ): Int = 0
+
+        // US-15
+        override suspend fun applyDuePendingChanges(): Int = 0
 
         fun setGroups(groups: List<GroupWithApps>) {
             groupsFlow.value = groups

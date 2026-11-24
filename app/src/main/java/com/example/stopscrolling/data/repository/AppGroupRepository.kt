@@ -8,6 +8,7 @@ import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.PendingChangeType
 import com.example.stopscrolling.data.PendingGroupChange
+import com.example.stopscrolling.data.PendingLimits
 import kotlinx.coroutines.flow.Flow
 import java.util.Calendar
 
@@ -25,6 +26,10 @@ interface AppGroupRepository {
         limitType: LimitType = LimitType.HARD
     ): Int
 
+    /*
+     * US-15: Hard limit changes are saved as pending
+     * and applied at midnight of the next day.
+     */
     suspend fun updateLimit(
         groupId: Int,
         timeLimit: Int,
@@ -41,13 +46,21 @@ interface AppGroupRepository {
 
     suspend fun deleteGroup(groupId: Int): Boolean
 
+    // US-09: Apply scheduled group deletions and app removals.
     suspend fun processDueChanges(
         nowMillis: Long = System.currentTimeMillis()
     ): Int
+
+    // US-15: Apply pending limit changes whose time has come.
+    suspend fun applyDuePendingChanges(): Int
 }
 
 class AppGroupRepositoryImpl(
-    private val database: AppDatabase
+    private val database: AppDatabase,
+    // Allows tests to provide a fixed time.
+    private val currentTimeMillis: () -> Long = {
+        System.currentTimeMillis()
+    }
 ) : AppGroupRepository {
 
     private val dao = database.appGroupDao()
@@ -58,18 +71,18 @@ class AppGroupRepositoryImpl(
         return dao.observeGroupsWithApps()
     }
 
-    // US-09 Task 3: Send pending changes to the UI.
+    // US-09: Send pending changes to the UI.
     override fun observePendingChanges(): Flow<List<PendingGroupChange>> {
         return pendingDao.observePendingChanges()
     }
 
     private fun hasActiveHardLimit(group: AppGroup): Boolean {
         return group.limitType == LimitType.HARD &&
-                group.timeLimit > 0
+                (group.timeLimit > 0 || group.weeklyLimit > 0)
     }
 
     private fun nextMidnightMillis(
-        nowMillis: Long = System.currentTimeMillis()
+        nowMillis: Long = currentTimeMillis()
     ): Long {
         val calendar = Calendar.getInstance()
 
@@ -92,7 +105,10 @@ class AppGroupRepositoryImpl(
         limitType: LimitType
     ): Int = database.withTransaction {
 
-        require(timeLimit >= 0)
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
+
         require(name.isNotBlank())
 
         val groupId = dao.insertGroup(
@@ -123,27 +139,32 @@ class AppGroupRepositoryImpl(
         limitType: LimitType
     ): Boolean = database.withTransaction {
 
-        require(timeLimit >= 0)
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
 
-        val existing = dao.getGroupById(groupId)
+        val saved = dao.getGroup(groupId)
             ?: return@withTransaction false
 
-        // Prevent weakening an active hard limit.
-        if (
-            hasActiveHardLimit(existing) &&
-            (
-                    limitType != LimitType.HARD ||
-                            timeLimit < existing.timeLimit
-                    )
-        ) {
+        // A group scheduled for deletion cannot be edited.
+        if (pendingDao.getPendingGroupDeletion(groupId) != null) {
             return@withTransaction false
         }
 
-        dao.updateLimit(
-            groupId,
+        val now = currentTimeMillis()
+
+        // Apply any limit change that is already due.
+        val current = PendingLimits.applyDue(saved, now)
+
+        // US-15: Save hard limit edits as pending.
+        val updated = PendingLimits.applyEdit(
+            current,
             timeLimit,
-            limitType
-        ) > 0
+            limitType,
+            now
+        )
+
+        dao.updateGroupRow(updated) > 0
     }
 
     // ---------- Update Group ----------
@@ -158,9 +179,12 @@ class AppGroupRepositoryImpl(
 
         require(name.isNotBlank())
         require(packageNames.isNotEmpty())
-        require(timeLimit >= 0)
 
-        val existing = dao.getGroupById(groupId)
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
+
+        val saved = dao.getGroup(groupId)
             ?: return@withTransaction false
 
         // A group scheduled for deletion cannot be edited.
@@ -168,16 +192,10 @@ class AppGroupRepositoryImpl(
             return@withTransaction false
         }
 
-        // Prevent weakening an active hard limit.
-        if (
-            hasActiveHardLimit(existing) &&
-            (
-                    limitType != LimitType.HARD ||
-                            timeLimit < existing.timeLimit
-                    )
-        ) {
-            return@withTransaction false
-        }
+        val now = currentTimeMillis()
+
+        // US-15: Apply any limit change that is already due.
+        val current = PendingLimits.applyDue(saved, now)
 
         val oldApps = dao.getAppsForGroup(groupId)
             .map { it.packageName }
@@ -188,6 +206,23 @@ class AppGroupRepositoryImpl(
         val addedApps = newApps - oldApps
         val removedApps = oldApps - newApps
 
+        // US-15: Use pending limit logic instead of
+        // directly updating the active hard limit.
+        val updatedGroup = PendingLimits.applyEdit(
+            current,
+            timeLimit,
+            limitType,
+            now
+        ).copy(
+            name = name.trim()
+        )
+
+        val updated = dao.updateGroupRow(updatedGroup)
+
+        if (updated == 0) {
+            return@withTransaction false
+        }
+
         // Cancel pending removals for apps kept in the group.
         newApps.forEach { packageName ->
             pendingDao.cancelPendingAppRemoval(
@@ -196,17 +231,7 @@ class AppGroupRepositoryImpl(
             )
         }
 
-        val updated = dao.updateGroup(
-            groupId,
-            name.trim(),
-            timeLimit,
-            limitType
-        )
-
-        if (updated == 0) {
-            return@withTransaction false
-        }
-
+        // Add new apps immediately.
         if (addedApps.isNotEmpty()) {
             dao.insertGroupApps(
                 addedApps.map { packageName ->
@@ -218,10 +243,10 @@ class AppGroupRepositoryImpl(
             )
         }
 
-        if (hasActiveHardLimit(existing)) {
+        if (hasActiveHardLimit(current)) {
 
-            // Keep removed apps until the next midnight.
-            val executeAt = nextMidnightMillis()
+            // US-09: Keep removed apps until the next midnight.
+            val executeAt = nextMidnightMillis(now)
 
             removedApps.forEach { packageName ->
                 pendingDao.insertPendingChange(
@@ -255,10 +280,19 @@ class AppGroupRepositoryImpl(
         groupId: Int
     ): Boolean = database.withTransaction {
 
-        val existing = dao.getGroupById(groupId)
+        val saved = dao.getGroup(groupId)
             ?: return@withTransaction false
 
-        if (hasActiveHardLimit(existing)) {
+        val now = currentTimeMillis()
+
+        // Apply due limit changes before checking the hard limit.
+        val current = PendingLimits.applyDue(saved, now)
+
+        if (current != saved) {
+            dao.updateGroupRow(current)
+        }
+
+        if (hasActiveHardLimit(current)) {
 
             // Schedule deletion for tomorrow at midnight.
             if (pendingDao.getPendingGroupDeletion(groupId) == null) {
@@ -269,7 +303,7 @@ class AppGroupRepositoryImpl(
                         changeType =
                             PendingChangeType.DELETE_GROUP.name,
                         packageName = null,
-                        executeAtMillis = nextMidnightMillis()
+                        executeAtMillis = nextMidnightMillis(now)
                     )
                 )
             }
@@ -287,7 +321,7 @@ class AppGroupRepositoryImpl(
         }
     }
 
-    // ---------- Process Pending Changes ----------
+    // ---------- US-09: Process Pending Group Changes ----------
 
     override suspend fun processDueChanges(
         nowMillis: Long
@@ -319,16 +353,16 @@ class AppGroupRepositoryImpl(
 
         for (change in appRemovals) {
 
-            if (dao.getGroupById(change.groupId) != null) {
+            if (dao.getGroup(change.groupId) != null) {
 
                 change.packageName?.let { packageName ->
                     dao.deleteGroupApp(
                         change.groupId,
                         packageName
                     )
-                }
 
-                processed++
+                    processed++
+                }
             }
 
             pendingDao.deletePendingChange(change.id)
@@ -336,4 +370,25 @@ class AppGroupRepositoryImpl(
 
         processed
     }
+
+    // ---------- US-15: Apply Pending Limit Changes ----------
+
+    override suspend fun applyDuePendingChanges(): Int =
+        database.withTransaction {
+
+            val now = currentTimeMillis()
+            var changedGroups = 0
+
+            for (group in dao.getGroupsWithDuePending(now)) {
+
+                val applied = PendingLimits.applyDue(group, now)
+
+                if (applied != group) {
+                    dao.updateGroupRow(applied)
+                    changedGroups++
+                }
+            }
+
+            changedGroups
+        }
 }
