@@ -55,7 +55,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        // Sprint 3: new columns for the pending changes (US-15, US-13, US-09)
+        // Sprint 3: new columns for the pending changes (US-15, US-13)
         // and the new table for the daily totals (US-27).
         // Old rows are kept: every new column has a default value or can be NULL.
         val MIGRATION_3_4 = object : Migration(3, 4) {
@@ -70,14 +70,6 @@ abstract class AppDatabase : RoomDatabase() {
                     "ALTER TABLE app_groups ADD COLUMN weeklyLimit INTEGER NOT NULL DEFAULT 0"
                 )
                 db.execSQL("ALTER TABLE app_groups ADD COLUMN pendingWeeklyLimit INTEGER")
-
-                // US-09: postponed deletion of a group or removal of an app (0 = false)
-                db.execSQL(
-                    "ALTER TABLE app_groups ADD COLUMN pendingDeletion INTEGER NOT NULL DEFAULT 0"
-                )
-                db.execSQL(
-                    "ALTER TABLE group_apps ADD COLUMN pendingRemoval INTEGER NOT NULL DEFAULT 0"
-                )
 
                 // US-27: total usage of each finished day
                 db.execSQL(

@@ -28,8 +28,5 @@ data class AppGroup(
 
     // Moment (milliseconds since the epoch) when the pending changes take effect.
     // It is 00:00 of the next day. null means there is no pending change.
-    val pendingFrom: Long? = null,
-
-    // US-09: true means the group will be deleted at [pendingFrom]
-    val pendingDeletion: Boolean = false
+    val pendingFrom: Long? = null
 )

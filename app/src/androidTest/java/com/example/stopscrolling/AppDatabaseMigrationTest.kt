@@ -233,7 +233,7 @@ class AppDatabaseMigrationTest {
             db.openHelper.readableDatabase.query(
                 """
                 SELECT id, name, timeLimit, limitType,
-                       weeklyLimit, pendingDeletion,
+                       weeklyLimit,
                        pendingTimeLimit, pendingLimitType,
                        pendingWeeklyLimit, pendingFrom
                 FROM app_groups
@@ -247,23 +247,22 @@ class AppDatabaseMigrationTest {
                 assertEquals(60, cursor.getInt(2))
                 assertEquals("SOFT", cursor.getString(3))
 
-                // No weekly limit and no deletion are planned
+                // No weekly limit is set
                 assertEquals(0, cursor.getInt(4))
-                assertEquals(0, cursor.getInt(5))
 
                 // No pending change
+                assertTrue(cursor.isNull(5))
                 assertTrue(cursor.isNull(6))
                 assertTrue(cursor.isNull(7))
                 assertTrue(cursor.isNull(8))
-                assertTrue(cursor.isNull(9))
 
                 assertFalse(cursor.moveToNext())
             }
 
-            // Step 4: The old GroupApp is still there and it is not marked for removal
+            // Step 4: The old GroupApp is still there
             db.openHelper.readableDatabase.query(
                 """
-                SELECT id, groupId, packageName, pendingRemoval
+                SELECT id, groupId, packageName
                 FROM group_apps
                 """.trimIndent()
             ).use { cursor ->
@@ -273,7 +272,6 @@ class AppDatabaseMigrationTest {
                 assertEquals(1, cursor.getInt(0))
                 assertEquals(1, cursor.getInt(1))
                 assertEquals("com.instagram.android", cursor.getString(2))
-                assertEquals(0, cursor.getInt(3))
 
                 assertFalse(cursor.moveToNext())
             }
