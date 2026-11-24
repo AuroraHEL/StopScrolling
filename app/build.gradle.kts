@@ -53,6 +53,9 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
 
+    // US-03: Capability Preferences Storage
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
+
     // US-06: ViewModel and Coroutines
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.4")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
@@ -75,6 +78,7 @@ dependencies {
     // Debug
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+
     // Room Database
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
@@ -85,5 +89,4 @@ dependencies {
     // US-08: DAO Testing
     androidTestImplementation("androidx.room:room-testing:2.8.4")
     androidTestImplementation("androidx.test:core:1.7.0")
-
 }
