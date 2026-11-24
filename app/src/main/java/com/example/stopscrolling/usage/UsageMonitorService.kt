@@ -63,9 +63,18 @@ class UsageMonitorService : Service() {
     private val overlayManager by lazy { OverlayManager(this) }
     private val mainHandler = Handler(Looper.getMainLooper())
 
+    // US-15: at midnight we apply the pending changes of the hard limits
+    private val dateChangeReceiver = DateChangeReceiver {
+        serviceScope.launch { applyPendingChanges() }
+    }
+
     // Groups of the app that is on the screen (empty if it is not regulated)
     @Volatile
     private var currentGroups: List<RegulatedGroup> = emptyList()
+
+    // Package of the app that is on the screen. We need it to read its groups again.
+    @Volatile
+    private var currentPackageName: String? = null
 
     // What the overlay shows now, null if there is no overlay. Main thread only.
     private var shownRequest: OverlayRequest? = null
@@ -74,6 +83,7 @@ class UsageMonitorService : Service() {
         super.onCreate()
         tracker = UsageTracker(this)
         createNotificationChannel()
+        dateChangeReceiver.register(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -90,10 +100,15 @@ class UsageMonitorService : Service() {
         if (monitorJob == null) {
             monitorJob = serviceScope.launch { monitorLoop() }
         }
+
+        // US-15: if the phone was off or the service was stopped at midnight,
+        // the pending changes are applied now
+        serviceScope.launch { applyPendingChanges() }
         return START_STICKY
     }
 
     override fun onDestroy() {
+        dateChangeReceiver.unregister(this)
         serviceScope.cancel()
         hideOverlayNow()
         super.onDestroy()
@@ -159,6 +174,7 @@ class UsageMonitorService : Service() {
     // Looks for the groups of the opened app and tells the rest of the app
     private suspend fun handleOpenedApp(packageName: String) {
         val groups = groupLookup.findGroupsOf(packageName)
+        currentPackageName = packageName
         currentGroups = groups
         if (groups.isEmpty()) {
             updateNotification(DEFAULT_TEXT)
@@ -174,6 +190,34 @@ class UsageMonitorService : Service() {
             Log.d(TAG, "Regulated app opened: $packageName (group ${group.groupId}), usage today: ${usageToday / 1000} s")
             UsageMonitorEvents.publish(RegulatedAppOpened(packageName, group.groupId, usageToday))
         }
+    }
+
+    // ---------- Pending limit changes (US-15) ----------
+
+    // Applies the pending changes of the hard limits that are due (see PendingLimits)
+    private suspend fun applyPendingChanges() {
+        try {
+            val repository = (application as StopScrollingApp).appGroupRepository
+            val changedGroups = repository.applyDuePendingChanges()
+            if (changedGroups > 0) {
+                Log.d(TAG, "Applied the pending limit changes of $changedGroups group(s)")
+                refreshCurrentGroups()
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // An error must not stop the service
+            Log.e(TAG, "Cannot apply the pending limit changes", e)
+        }
+    }
+
+    // Reads the groups of the open app again, so that a new limit is used at once
+    // (the open app can be a regulated app that stays open during midnight)
+    private suspend fun refreshCurrentGroups() {
+        val packageName = currentPackageName ?: return
+        // No regulated app on the screen: nothing to refresh
+        if (currentGroups.isEmpty()) return
+        currentGroups = groupLookup.findGroupsOf(packageName)
     }
 
     // ---------- Limits and overlay ----------

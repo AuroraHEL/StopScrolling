@@ -212,5 +212,7 @@ class NewGroupViewModelTest {
         ): Boolean {
             return false
         }
+
+        override suspend fun applyDuePendingChanges(): Int = 0
     }
 }
