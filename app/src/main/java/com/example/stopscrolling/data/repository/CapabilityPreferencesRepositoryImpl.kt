@@ -27,6 +27,9 @@ class CapabilityPreferencesRepositoryImpl(
 
         val CAN_DO_MENTAL_ARITHMETIC =
             booleanPreferencesKey("can_do_mental_arithmetic")
+
+        val ONBOARDING_COMPLETED =
+            booleanPreferencesKey("onboarding_completed")
     }
 
     /**
@@ -43,6 +46,14 @@ class CapabilityPreferencesRepositoryImpl(
         }
 
     /**
+     * Onboarding is incomplete by default.
+     */
+    override val isOnboardingCompleted: Flow<Boolean> =
+        dataStore.data.map { savedPreferences ->
+            savedPreferences[ONBOARDING_COMPLETED] ?: false
+        }
+
+    /**
      * Saves the user's capability preferences locally.
      */
     override suspend fun updatePreferences(
@@ -53,6 +64,23 @@ class CapabilityPreferencesRepositoryImpl(
 
             savedPreferences[CAN_DO_MENTAL_ARITHMETIC] =
                 preferences.canDoMentalArithmetic
+        }
+    }
+
+    /**
+     * Saves preferences and marks onboarding as completed
+     * in a single DataStore transaction.
+     */
+    override suspend fun completeOnboarding(
+        preferences: CapabilityPreferences
+    ) {
+        dataStore.edit { savedPreferences ->
+            savedPreferences[CAN_WALK] = preferences.canWalk
+
+            savedPreferences[CAN_DO_MENTAL_ARITHMETIC] =
+                preferences.canDoMentalArithmetic
+
+            savedPreferences[ONBOARDING_COMPLETED] = true
         }
     }
 }

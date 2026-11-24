@@ -71,4 +71,21 @@
         <item quantity="other">%d minutes</item>
     </plurals>
     <string name="overlay_challenge_placeholder">The math challenge is coming soon.</string>
+
+
+    <!-- US-03: Capability selection onboarding -->
+    <string name="capability_selection_title">Choose your capabilities</string>
+    <string name="capability_selection_description">Choose which activities you are able to do. StopScrolling will use your preferences to offer suitable challenges.</string>
+
+    <string name="capability_can_walk">I can walk</string>
+    <string name="capability_walk_description">Complete walking challenges to earn extra screen time.</string>
+
+    <string name="capability_can_do_math">I can do mental arithmetic</string>
+    <string name="capability_math_description">Solve math challenges to earn extra screen time.</string>
+
+    <string name="capability_change_later">You can change these preferences later in Settings.</string>
+    <string name="capability_continue">Continue</string>
+    <string name="capability_error">Something went wrong. Please try again.</string>
+    <string name="capability_retry">Retry</string>
+
 </resources>

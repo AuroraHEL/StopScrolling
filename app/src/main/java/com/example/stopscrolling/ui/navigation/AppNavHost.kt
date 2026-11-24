@@ -17,9 +17,12 @@ import com.example.stopscrolling.ui.dashboard.DashboardScreen
 import com.example.stopscrolling.ui.dashboard.DashboardViewModel
 import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
+import com.example.stopscrolling.ui.onboarding.CapabilitySelectionScreen
+import com.example.stopscrolling.ui.onboarding.CapabilitySelectionViewModel
 
 object Routes {
     const val PERMISSION = "permission"
+    const val CAPABILITY_SELECTION = "capability_selection"
     const val DASHBOARD = "dashboard"
     const val NEW_GROUP = "new_group"
 }
@@ -40,7 +43,9 @@ fun AppNavHost(
             ) {
                 PermissionScreen(
                     onPermissionGranted = {
-                        navController.navigate(Routes.DASHBOARD) {
+                        navController.navigate(
+                            Routes.CAPABILITY_SELECTION
+                        ) {
                             popUpTo(Routes.PERMISSION) {
                                 inclusive = true
                             }
@@ -51,13 +56,35 @@ fun AppNavHost(
             }
         }
 
+        composable(Routes.CAPABILITY_SELECTION) {
+            val viewModel: CapabilitySelectionViewModel =
+                viewModel(
+                    factory = CapabilitySelectionViewModel.Factory
+                )
+
+            CapabilitySelectionScreen(
+                viewModel = viewModel,
+                onCompleted = {
+                    navController.navigate(Routes.DASHBOARD) {
+                        popUpTo(Routes.CAPABILITY_SELECTION) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+
         composable(Routes.DASHBOARD) {
             val viewModel: DashboardViewModel =
                 viewModel(factory = DashboardViewModel.Factory)
 
-            val groups by viewModel.groups.collectAsStateWithLifecycle()
+            val groups by
+            viewModel.groups.collectAsStateWithLifecycle()
+
             val isUpdatingLimit by
             viewModel.isUpdatingLimit.collectAsStateWithLifecycle()
+
             val limitUpdateError by
             viewModel.limitUpdateError.collectAsStateWithLifecycle()
 
@@ -69,7 +96,8 @@ fun AppNavHost(
                 onUpdateLimit = viewModel::updateLimit,
                 isUpdatingLimit = isUpdatingLimit,
                 limitUpdateError = limitUpdateError,
-                onClearLimitUpdateError = viewModel::clearLimitUpdateError
+                onClearLimitUpdateError =
+                    viewModel::clearLimitUpdateError
             )
         }
 
