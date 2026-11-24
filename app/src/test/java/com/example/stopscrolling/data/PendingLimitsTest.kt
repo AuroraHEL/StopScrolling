@@ -200,17 +200,6 @@ class PendingLimitsTest {
     }
 
     @Test
-    fun applyDue_keepsPendingFromWhenTheGroupWaitsForADeletion() {
-        val group = waiting.copy(pendingDeletion = true)
-
-        val result = PendingLimits.applyDue(group, midnight)
-
-        assertEquals(30, result.timeLimit)
-        assertTrue(result.pendingDeletion)
-        assertEquals(midnight, result.pendingFrom)
-    }
-
-    @Test
     fun editAfterMidnight_usesTheLimitThatWasPending() {
         // At midnight the change is applied. The next edit works on the new current limit,
         // which is now a soft limit, so it works at once.

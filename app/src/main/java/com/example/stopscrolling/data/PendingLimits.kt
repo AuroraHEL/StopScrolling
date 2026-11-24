@@ -95,13 +95,12 @@ object PendingLimits {
     }
 
     /*
-     * pendingFrom is shared with other pending changes (weekly limit, group deletion).
+     * pendingFrom is shared by the pending limit and the pending weekly limit.
      * We clear it only when nothing else is waiting for it.
      */
     private fun clearPendingFromIfUnused(group: AppGroup): AppGroup {
         val somethingWaiting = group.pendingTimeLimit != null ||
-            group.pendingWeeklyLimit != null ||
-            group.pendingDeletion
+            group.pendingWeeklyLimit != null
         return if (somethingWaiting) group else group.copy(pendingFrom = null)
     }
 }

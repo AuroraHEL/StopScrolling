@@ -110,7 +110,7 @@ class AppGroupRepositoryImpl(
 
         for (group in dao.getGroupsWithDuePending(now)) {
             val applied = PendingLimits.applyDue(group, now)
-            // A group can be due only for another reason (for example a deletion): skip it
+            // Skip the groups where applying the due change did not modify anything
             if (applied != group) {
                 dao.updateGroupRow(applied)
                 changedGroups++
