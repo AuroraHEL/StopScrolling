@@ -112,4 +112,29 @@ class WeeklyLimitEditRepositoryTest {
             db.close()
         }
     }
+
+    // Found in the review: hard group with only a weekly limit, changed to soft in Edit Limit
+    @Test
+    fun hardGroupWithOnlyAWeeklyLimit_changingToSoft_staysHardUntilMidnight() = runBlocking {
+        val db = createDatabase()
+        try {
+            val repository = AppGroupRepositoryImpl(db) { wednesdayAfternoon }
+            val id = repository.createGroup(
+                name = "Social",
+                packageNames = listOf("app.a"),
+                timeLimit = 0,
+                limitType = LimitType.HARD,
+                weeklyLimit = 300
+            )
+
+            // The dialog saves the daily and the weekly limit together
+            repository.updateLimits(id, 0, LimitType.SOFT, weeklyLimit = 300)
+
+            val group = repository.observeGroups().first().single().group
+            assertEquals(LimitType.HARD, group.limitType)
+            assertEquals(LimitType.SOFT, group.pendingLimitType)
+        } finally {
+            db.close()
+        }
+    }
 }

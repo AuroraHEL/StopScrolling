@@ -15,9 +15,14 @@ import java.util.TimeZone
  */
 object PendingLimits {
 
-    /* True if the group has an active hard limit (a limit of 0 means no limit). */
+    /*
+     * True if the group has an active hard limit: a daily one or (US-13) a weekly one.
+     * A limit of 0 means no limit. The weekly limit must count too: otherwise a group with
+     * only a weekly hard limit could be changed to soft at once, without waiting for midnight.
+     */
     fun isUnderHardLimit(group: AppGroup): Boolean {
-        return group.limitType == LimitType.HARD && group.timeLimit > 0
+        return group.limitType == LimitType.HARD &&
+            (group.timeLimit > 0 || group.weeklyLimit > 0)
     }
 
     /* True if the group has a limit change that is waiting for midnight. */

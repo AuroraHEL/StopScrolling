@@ -121,4 +121,67 @@ class PendingLimitsWeeklyTest {
         assertEquals(30, cancelledWeekly.pendingTimeLimit)
         assertEquals(midnight, cancelledWeekly.pendingFrom) // still needed by the daily change
     }
+
+    // ----- Group with a hard WEEKLY limit and no daily limit (found in the review of the PR) -----
+
+    private val hardWeeklyOnly = hardWithWeekly.copy(timeLimit = 0)
+
+    @Test
+    fun isUnderHardLimit_alsoTrueForAHardGroupWithOnlyAWeeklyLimit() {
+        assertTrue(PendingLimits.isUnderHardLimit(hardWeeklyOnly))
+        // No daily and no weekly limit: nothing to protect
+        assertFalse(PendingLimits.isUnderHardLimit(hardWeeklyOnly.copy(weeklyLimit = 0)))
+        // A soft group is never under a hard limit
+        assertFalse(PendingLimits.isUnderHardLimit(hardWeeklyOnly.copy(limitType = LimitType.SOFT)))
+    }
+
+    @Test
+    fun weeklyOnlyHardGroup_changingToSoft_waitsForMidnight() {
+        val result = PendingLimits.applyEdit(hardWeeklyOnly, 0, LimitType.SOFT, afternoon, zone)
+
+        // The lock screen stays: the group is still hard until midnight
+        assertEquals(LimitType.HARD, result.limitType)
+        assertEquals(LimitType.SOFT, result.pendingLimitType)
+        assertEquals(midnight, result.pendingFrom)
+    }
+
+    @Test
+    fun weeklyOnlyHardGroup_changeToSoft_isAppliedAtMidnight() {
+        val pending = PendingLimits.applyEdit(hardWeeklyOnly, 0, LimitType.SOFT, afternoon, zone)
+
+        assertEquals(LimitType.HARD, PendingLimits.applyDue(pending, midnight - 1).limitType)
+        assertEquals(LimitType.SOFT, PendingLimits.applyDue(pending, midnight).limitType)
+    }
+
+    @Test
+    fun weeklyOnlyHardGroup_sameValues_isNotAChange() {
+        val result = PendingLimits.applyEdit(hardWeeklyOnly, 0, LimitType.HARD, afternoon, zone)
+
+        assertNull(result.pendingLimitType)
+        assertNull(result.pendingTimeLimit)
+        assertNull(result.pendingFrom)
+    }
+
+    @Test
+    fun weeklyOnlyHardGroup_typeAndWeeklyEditedTogether_bothWaitForMidnight() {
+        // What the Edit Limit dialog does: the weekly edit first, then the daily edit
+        val weeklyEdited = PendingLimits.applyWeeklyEdit(hardWeeklyOnly, 600, afternoon, zone)
+        val result = PendingLimits.applyEdit(weeklyEdited, 0, LimitType.SOFT, afternoon, zone)
+
+        assertEquals(LimitType.HARD, result.limitType)
+        assertEquals(300, result.weeklyLimit)
+        assertEquals(LimitType.SOFT, result.pendingLimitType)
+        assertEquals(600, result.pendingWeeklyLimit)
+        assertEquals(midnight, result.pendingFrom)
+    }
+
+    @Test
+    fun softWeeklyOnlyGroup_changingToHard_worksAtOnce() {
+        val soft = hardWeeklyOnly.copy(limitType = LimitType.SOFT)
+
+        val result = PendingLimits.applyEdit(soft, 0, LimitType.HARD, afternoon, zone)
+
+        assertEquals(LimitType.HARD, result.limitType)
+        assertNull(result.pendingLimitType)
+    }
 }
