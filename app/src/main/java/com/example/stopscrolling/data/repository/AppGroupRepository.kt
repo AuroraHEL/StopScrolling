@@ -17,7 +17,9 @@ interface AppGroupRepository {
         name: String,
         packageNames: List<String>,
         timeLimit: Int = 0,
-        limitType: LimitType = LimitType.HARD
+        limitType: LimitType = LimitType.HARD,
+        // US-13: weekly limit in minutes, 0 = no weekly limit
+        weeklyLimit: Int = 0
     ): Int
 
     /*
@@ -54,18 +56,23 @@ class AppGroupRepositoryImpl(
         name: String,
         packageNames: List<String>,
         timeLimit: Int,
-        limitType: LimitType
+        limitType: LimitType,
+        weeklyLimit: Int
     ): Int = database.withTransaction {
 
         require(timeLimit >= 0) {
             "Time limit cannot be negative"
+        }
+        require(weeklyLimit >= 0) {
+            "Weekly limit cannot be negative"
         }
 
         val groupId = dao.insertGroup(
             AppGroup(
                 name = name.trim(),
                 timeLimit = timeLimit,
-                limitType = limitType
+                limitType = limitType,
+                weeklyLimit = weeklyLimit
             )
         ).toInt()
 
