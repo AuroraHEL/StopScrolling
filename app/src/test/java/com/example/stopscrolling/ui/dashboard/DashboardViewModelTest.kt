@@ -198,7 +198,8 @@ class DashboardViewModelTest {
             name: String,
             packageNames: List<String>,
             timeLimit: Int,
-            limitType: LimitType
+            limitType: LimitType,
+            weeklyLimit: Int
         ): Int = 1
 
         override suspend fun updateLimit(
