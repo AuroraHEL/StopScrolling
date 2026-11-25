@@ -5,6 +5,7 @@ import com.example.stopscrolling.data.TimeExtensionDao
 import com.example.stopscrolling.ui.overlay.EXTENSION_MINUTES
 import com.example.stopscrolling.usage.DayBoundary
 import com.example.stopscrolling.usage.ExtensionLookup
+import com.example.stopscrolling.usage.WeekBoundary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.TimeZone
@@ -52,6 +53,19 @@ class RoomTimeExtensionRepository(
             dao.getTotalExtensionMinutesForDay(
                 groupId = groupId,
                 dayStartMillis = dayStart
+            )
+        }
+
+    // US-13: an extension also adds time to the weekly limit of a soft limit
+    override suspend fun extraMinutesThisWeek(groupId: Int): Int =
+        extraMinutesInWeek(groupId, System.currentTimeMillis())
+
+    suspend fun extraMinutesInWeek(groupId: Int, nowMillis: Long): Int =
+        withContext(Dispatchers.IO) {
+            val weekStart = WeekBoundary.startOfWeekMillis(nowMillis, timeZoneProvider())
+            dao.getTotalExtensionMinutesSince(
+                groupId = groupId,
+                weekStartMillis = weekStart
             )
         }
 }

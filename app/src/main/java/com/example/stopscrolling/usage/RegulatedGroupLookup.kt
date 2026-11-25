@@ -13,7 +13,8 @@ data class RegulatedGroup(
     val packageNames: List<String>,
     val name: String = "",
     val timeLimitMinutes: Int = 0, // 0 = no limit
-    val limitType: LimitType = LimitType.HARD
+    val limitType: LimitType = LimitType.HARD,
+    val weeklyLimitMinutes: Int = 0 // US-13: 0 = no weekly limit
 )
 /* Finds the regulated groups of an app. */
 interface RegulatedGroupLookup {

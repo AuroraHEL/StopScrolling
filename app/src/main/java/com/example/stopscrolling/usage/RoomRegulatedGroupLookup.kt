@@ -28,7 +28,8 @@ class RoomRegulatedGroupLookup(
                     packageNames = item.apps.map { it.packageName },
                     name = item.group.name,
                     timeLimitMinutes = item.group.timeLimit,
-                    limitType = item.group.limitType
+                    limitType = item.group.limitType,
+                    weeklyLimitMinutes = item.group.weeklyLimit
                 )
             }
     }
