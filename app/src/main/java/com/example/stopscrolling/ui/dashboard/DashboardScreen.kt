@@ -201,56 +201,59 @@ private fun GroupCard(
                 style = MaterialTheme.typography.bodySmall
             )
 
-            // US-15: a change of the hard limit is waiting for midnight
-            val pendingMinutes = item.group.pendingTimeLimit
-            val pendingType = item.group.pendingLimitType
-            if (pendingMinutes != null && pendingType != null) {
-                Spacer(Modifier.height(4.dp))
-
-                Text(
-                    text = limitSummary(
-                        minutes = pendingMinutes,
-                        limitType = pendingType,
-                        withTypeRes = R.string.pending_limit_with_type,
-                        noLimitRes = R.string.pending_limit_no_limit
-                    ),
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                Text(
-                    text = stringResource(R.string.pending_takes_effect),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            // US-13: weekly limit, shown only if the group has one or a change is waiting
+            // US-13: the weekly limit is shown right after the daily one (the limits now)
             if (item.group.weeklyLimit > 0) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     text = stringResource(
                         R.string.weekly_limit_with_type,
-                        formatDuration(item.group.weeklyLimit),
+                        weeklyLabel(item.group.weeklyLimit),
                         limitTypeText(item.group.limitType)
                     ),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
+
+            // Changes that wait for midnight (US-15 and US-13): all together, with one notice.
+            // A change of the type (hard to soft) is for the daily AND the weekly limit,
+            // so the weekly line is shown with the new type as well.
+            val pendingDaily = PendingLimits.hasPendingLimit(item.group)
             val pendingWeekly = item.group.pendingWeeklyLimit
-            if (pendingWeekly != null) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = if (pendingWeekly == 0) {
-                        stringResource(R.string.pending_weekly_limit_none)
-                    } else {
-                        stringResource(
-                            R.string.pending_weekly_limit_with_type,
-                            formatDuration(pendingWeekly),
-                            limitTypeText(item.group.pendingLimitType ?: item.group.limitType)
-                        )
-                    },
-                    style = MaterialTheme.typography.bodySmall
-                )
+            val tomorrowType = item.group.pendingLimitType ?: item.group.limitType
+            val tomorrowWeekly = pendingWeekly ?: item.group.weeklyLimit
+            val typeChanges = pendingDaily && tomorrowType != item.group.limitType
+            val showPendingWeekly = pendingWeekly != null || (typeChanges && tomorrowWeekly > 0)
+
+            if (pendingDaily || showPendingWeekly) {
+                Spacer(Modifier.height(8.dp))
+
+                if (pendingDaily) {
+                    Text(
+                        text = limitSummary(
+                            minutes = item.group.pendingTimeLimit ?: item.group.timeLimit,
+                            limitType = tomorrowType,
+                            withTypeRes = R.string.pending_limit_with_type,
+                            noLimitRes = R.string.pending_limit_no_limit
+                        ),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                if (showPendingWeekly) {
+                    Text(
+                        text = if (tomorrowWeekly == 0) {
+                            stringResource(R.string.pending_weekly_limit_none)
+                        } else {
+                            stringResource(
+                                R.string.pending_weekly_limit_with_type,
+                                weeklyLabel(tomorrowWeekly),
+                                limitTypeText(tomorrowType)
+                            )
+                        },
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 Text(
                     text = stringResource(R.string.pending_takes_effect),
                     style = MaterialTheme.typography.bodySmall,
@@ -548,6 +551,20 @@ private fun limitLabel(minutes: Int): String {
         480 -> stringResource(R.string.eight_hours)
         600 -> stringResource(R.string.ten_hours)
         else -> pluralStringResource(R.plurals.minutes_count, minutes, minutes)
+    }
+}
+
+// Minutes of the preset daily limits: they already have a text ("1 hour 30 minutes")
+private val PRESET_MINUTES = setOf(60, 90, 120, 180, 240, 300, 360, 480, 600)
+
+// Text of a weekly limit. It uses the same words as the daily limit ("1 minute", "2 hours"),
+// and the short form for free values like "10 h 30 min" (a weekly limit is typed, not chosen).
+@Composable
+private fun weeklyLabel(minutes: Int): String {
+    return if (minutes < 60 || minutes in PRESET_MINUTES) {
+        limitLabel(minutes)
+    } else {
+        formatDuration(minutes)
     }
 }
 
