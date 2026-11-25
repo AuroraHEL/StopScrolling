@@ -51,8 +51,15 @@ object Rfcomm {
             val start = SystemClock.elapsedRealtime()
             var socket: BluetoothSocket? = null
             try {
-                // A running discovery makes the connection slow
-                adapter.cancelDiscovery()
+                // A running discovery makes the connection slow. cancelDiscovery() needs
+                // BLUETOOTH_SCAN (Android 12+) or BLUETOOTH_ADMIN (Android 11-), which we do not
+                // request because the app never scans. Without it Android throws a
+                // SecurityException (not an IOException) and the app crashes, so we ignore it.
+                try {
+                    adapter.cancelDiscovery()
+                } catch (_: SecurityException) {
+                    // No permission: our app never started a discovery, we just continue
+                }
                 socket = device.createRfcommSocketToServiceRecord(APP_UUID)
                 socket.connect()
 
@@ -74,6 +81,13 @@ object Rfcomm {
                     ok = false,
                     millis = SystemClock.elapsedRealtime() - start,
                     error = e.message ?: e.javaClass.simpleName
+                )
+            } catch (e: SecurityException) {
+                // A missing Bluetooth permission must show an error in the log, not crash the app
+                SendResult(
+                    ok = false,
+                    millis = SystemClock.elapsedRealtime() - start,
+                    error = "Permission problem: ${e.message}"
                 )
             } finally {
                 runCatching { socket?.close() }
@@ -115,6 +129,8 @@ object Rfcomm {
                     }
                 } catch (e: IOException) {
                     SpikeState.add("Cannot listen: ${e.message}")
+                } catch (e: SecurityException) {
+                    SpikeState.add("Cannot listen, permission problem: ${e.message}")
                 } finally {
                     closeServer()
                 }
@@ -153,6 +169,8 @@ object Rfcomm {
                 reader.read()
             } catch (e: IOException) {
                 SpikeState.add("Connection error: ${e.message}")
+            } catch (e: SecurityException) {
+                SpikeState.add("Connection error, permission problem: ${e.message}")
             } finally {
                 watchdog.cancel()
                 runCatching { socket.close() }
