@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
+import com.example.stopscrolling.data.LimitKind
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
 
 /** Minutes granted by one extension (US-19 uses the same value). */
@@ -47,7 +48,9 @@ fun SoftLimitScreen(
     onRequestExtension: () -> Unit,
     onGoHome: () -> Unit,
     modifier: Modifier = Modifier,
-    extensionMinutes: Int = EXTENSION_MINUTES
+    extensionMinutes: Int = EXTENSION_MINUTES,
+    // US-13: says if the daily or the weekly limit was reached
+    limitKind: LimitKind = LimitKind.DAILY
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -69,7 +72,13 @@ fun SoftLimitScreen(
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                text = stringResource(R.string.overlay_soft_title),
+                text = stringResource(
+                    if (limitKind == LimitKind.WEEKLY) {
+                        R.string.overlay_soft_title_weekly
+                    } else {
+                        R.string.overlay_soft_title
+                    }
+                ),
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() }
@@ -77,7 +86,11 @@ fun SoftLimitScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(
-                    R.string.overlay_soft_message,
+                    if (limitKind == LimitKind.WEEKLY) {
+                        R.string.overlay_soft_message_weekly
+                    } else {
+                        R.string.overlay_soft_message
+                    },
                     formatDuration(usedMinutes),
                     groupName,
                     formatDuration(limitMinutes)

@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
+import com.example.stopscrolling.data.LimitKind
 import com.example.stopscrolling.data.LimitType
 
 /** What the overlay must show. */
@@ -30,7 +31,9 @@ data class OverlayRequest(
     val groupName: String,
     val limitType: LimitType,
     val usedMinutes: Int,
-    val limitMinutes: Int
+    val limitMinutes: Int,
+    // US-13: which limit was reached. [usedMinutes] and [limitMinutes] belong to this limit.
+    val limitKind: LimitKind = LimitKind.DAILY
 )
 
 /**
@@ -52,10 +55,11 @@ fun OverlayContent(
             groupName = request.groupName,
             limitMinutes = request.limitMinutes,
             onGoHome = onGoHome,
-            modifier = modifier
+            modifier = modifier,
+            limitKind = request.limitKind
         )
         LimitType.SOFT -> {
-            var showChallenge by remember(request.groupId) { mutableStateOf(false) }
+            var showChallenge by remember(request.groupId, request.limitKind) { mutableStateOf(false) }
             if (showChallenge) {
                 challengeContent(onExtensionGranted, { showChallenge = false })
             } else {
@@ -65,7 +69,8 @@ fun OverlayContent(
                     limitMinutes = request.limitMinutes,
                     onRequestExtension = { showChallenge = true },
                     onGoHome = onGoHome,
-                    modifier = modifier
+                    modifier = modifier,
+                    limitKind = request.limitKind
                 )
             }
         }

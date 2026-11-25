@@ -77,4 +77,18 @@
         <item quantity="other">%d minutes</item>
     </plurals>
     <string name="overlay_challenge_placeholder">The math challenge is coming soon.</string>
+
+    <!-- US-13: weekly limit -->
+    <string name="weekly_time_limit">Weekly time limit (optional)</string>
+    <string name="weekly_limit_hint">The week starts on Monday at 00:00. The weekly limit uses the same type (hard or soft) as the daily limit.</string>
+    <string name="weekly_hours">Hours</string>
+    <string name="weekly_minutes">Minutes</string>
+    <string name="weekly_limit_error_empty">Enter a weekly limit</string>
+    <string name="weekly_limit_error_not_positive">The weekly limit must be greater than 0</string>
+    <string name="weekly_limit_error_too_long">The weekly limit cannot be more than 168 hours</string>
+    <string name="weekly_limit_error_below_daily">The weekly limit cannot be lower than the daily limit</string>
+    <string name="overlay_hard_title_weekly">Weekly limit reached</string>
+    <string name="overlay_hard_message_weekly">You reached your weekly limit of %1$s for %2$s. These apps are blocked until Monday.</string>
+    <string name="overlay_soft_title_weekly">Weekly soft limit reached</string>
+    <string name="overlay_soft_message_weekly">You used %1$s this week in %2$s, and your weekly limit was %3$s. Do you really want to keep going?</string>
 </resources>

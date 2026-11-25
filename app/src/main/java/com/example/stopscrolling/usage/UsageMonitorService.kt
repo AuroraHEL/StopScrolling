@@ -231,10 +231,23 @@ class UsageMonitorService : Service() {
         }
 
         val states = groups.map { group ->
+            // US-13: the weekly values are read only if the group has a weekly limit
+            // (the past days of the week come from a cache refreshed once per minute)
+            val hasWeeklyLimit = group.weeklyLimitMinutes > 0
             GroupLimitState(
                 group = group,
                 usedMillis = tracker.getTodayUsageForPackages(group.packageNames),
-                extraMinutes = extensionLookup.extraMinutesToday(group.groupId)
+                extraMinutes = extensionLookup.extraMinutesToday(group.groupId),
+                weeklyUsedMillis = if (hasWeeklyLimit) {
+                    tracker.getWeekUsageForPackages(group.packageNames)
+                } else {
+                    0L
+                },
+                weeklyExtraMinutes = if (hasWeeklyLimit) {
+                    extensionLookup.extraMinutesThisWeek(group.groupId)
+                } else {
+                    0
+                }
             )
         }
         val result = LimitEvaluator.evaluate(states)
@@ -254,12 +267,19 @@ class UsageMonitorService : Service() {
             groupName = group.name,
             limitType = group.limitType,
             usedMinutes = decision.usedMinutes,
-            limitMinutes = group.timeLimitMinutes
+            // US-13: the limit that was reached (today or this week), not always the daily one
+            limitMinutes = decision.limitMinutes,
+            limitKind = decision.limitKind
         )
 
         val shown = shownRequest
         // Same screen already visible: nothing to do
-        if (shown != null && shown.groupId == request.groupId && shown.limitType == request.limitType) return
+        // (the daily and the weekly screens of the same group are two different screens)
+        if (shown != null &&
+            shown.groupId == request.groupId &&
+            shown.limitType == request.limitType &&
+            shown.limitKind == request.limitKind
+        ) return
         hideOverlayNow() // another group or type: replace it
 
         val ok = overlayManager.show {
