@@ -7,6 +7,7 @@ import com.example.stopscrolling.data.repository.AppGroupRepositoryImpl
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import com.example.stopscrolling.data.repository.RoomTimeExtensionRepository
 import com.example.stopscrolling.data.repository.TimeExtensionRepository
+import com.example.stopscrolling.notification.NotificationChannels
 
 class StopScrollingApp : Application() {
 
@@ -24,5 +25,11 @@ class StopScrollingApp : Application() {
 
     val extensionRepository: TimeExtensionRepository by lazy {
         RoomTimeExtensionRepository(database.timeExtensionDao())
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+
+        NotificationChannels.createHardLimitWarningChannel(this)
     }
 }
