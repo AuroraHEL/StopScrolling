@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AppGroup::class,
         GroupApp::class,
         TimeExtension::class,
-        DailyUsage::class
+        DailyUsage::class,
+        PendingGroupChange::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 @TypeConverters(LimitTypeConverter::class)
@@ -25,7 +26,10 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun timeExtensionDao(): TimeExtensionDao
 
+    abstract fun pendingGroupChangeDao(): PendingGroupChangeDao
+
     companion object {
+
         @Volatile
         private var instance: AppDatabase? = null
 
@@ -84,6 +88,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        // US-09: postponed group deletion and app removal
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS pending_group_changes (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        groupId INTEGER NOT NULL,
+                        changeType TEXT NOT NULL,
+                        packageName TEXT,
+                        executeAtMillis INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+
+                db.execSQL(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS
+                    index_pending_group_changes_groupId_packageName
+                    ON pending_group_changes (groupId, packageName)
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
@@ -91,7 +120,12 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "stopscrolling.db"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                    .addMigrations(
+                        MIGRATION_1_2,
+                        MIGRATION_2_3,
+                        MIGRATION_3_4,
+                        MIGRATION_4_5
+                    )
                     .build()
                     .also { instance = it }
             }

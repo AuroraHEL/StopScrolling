@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.data.PendingChangeType
+import com.example.stopscrolling.data.PendingGroupChange
 import com.example.stopscrolling.data.PendingLimits
 import com.example.stopscrolling.ui.newgroup.WeeklyLimitSection
 import com.example.stopscrolling.ui.overlay.formatDuration
@@ -61,6 +63,13 @@ import com.example.stopscrolling.util.WeeklyLimitValidator
 fun DashboardScreen(
     groups: List<GroupWithApps>,
     onNewGroupClick: () -> Unit,
+
+    // US-09: Pending deletions from the database.
+    pendingChanges: List<PendingGroupChange> = emptyList(),
+
+    // US-09: Navigate to Edit Group screen.
+    onEditGroupClick: (Int) -> Unit = {},
+
     // groupId, daily minutes, limit type, weekly minutes (0 = none), called when saved
     onUpdateLimit: (Int, Int, LimitType, Int, () -> Unit) -> Unit =
         { _, _, _, _, _ -> },
@@ -81,12 +90,14 @@ fun DashboardScreen(
             )
         }
     ) { padding ->
+
         Column(
             modifier = Modifier
                 .padding(padding)
                 .padding(16.dp)
                 .fillMaxSize()
         ) {
+
             Button(
                 onClick = onNewGroupClick,
                 modifier = Modifier.fillMaxWidth()
@@ -95,13 +106,16 @@ fun DashboardScreen(
                     Icons.Default.Add,
                     contentDescription = null
                 )
+
                 Spacer(Modifier.width(8.dp))
+
                 Text(stringResource(R.string.new_group))
             }
 
             Spacer(Modifier.height(16.dp))
 
             if (groups.isEmpty()) {
+
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -111,7 +125,9 @@ fun DashboardScreen(
                         textAlign = TextAlign.Center
                     )
                 }
+
             } else {
+
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -119,11 +135,23 @@ fun DashboardScreen(
                         items = groups,
                         key = { it.group.id }
                     ) { item ->
+
+                        // US-09: Check for scheduled group deletion.
+                        val isPendingDeletion = pendingChanges.any { change ->
+                            change.groupId == item.group.id &&
+                                    change.changeType ==
+                                    PendingChangeType.DELETE_GROUP.name
+                        }
+
                         GroupCard(
                             item = item,
+                            isPendingDeletion = isPendingDeletion,
                             onEditLimitClick = {
                                 onClearLimitUpdateError()
                                 editingGroup = item
+                            },
+                            onEditGroupClick = {
+                                onEditGroupClick(item.group.id)
                             }
                         )
                     }
@@ -132,7 +160,10 @@ fun DashboardScreen(
         }
     }
 
+    // ---------- Edit Limit Dialog ----------
+
     editingGroup?.let { item ->
+
         EditLimitDialog(
             // If a change is already waiting, the dialog starts with it (the latest edit)
             currentTimeLimit = item.group.pendingTimeLimit ?: item.group.timeLimit,
@@ -143,7 +174,9 @@ fun DashboardScreen(
             showNextDayNotice = PendingLimits.isUnderHardLimit(item.group),
             showWeeklyNextDayNotice = PendingLimits.isUnderWeeklyHardLimit(item.group),
             isSaving = isUpdatingLimit,
+
             hasError = limitUpdateError,
+
             onDismiss = {
                 if (!isUpdatingLimit) {
                     editingGroup = null
@@ -164,17 +197,24 @@ fun DashboardScreen(
     }
 }
 
+// ---------- Group Card ----------
+
 @Composable
 private fun GroupCard(
     item: GroupWithApps,
-    onEditLimitClick: () -> Unit
+    isPendingDeletion: Boolean,
+    onEditLimitClick: () -> Unit,
+    onEditGroupClick: () -> Unit
 ) {
+
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
+
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+
             Text(
                 text = item.group.name,
                 style = MaterialTheme.typography.titleMedium
@@ -191,6 +231,7 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
+            // Current daily limit.
             Text(
                 text = limitSummary(
                     minutes = item.group.timeLimit,
@@ -255,7 +296,9 @@ private fun GroupCard(
                 }
 
                 Text(
-                    text = stringResource(R.string.pending_takes_effect),
+                    text = stringResource(
+                        R.string.pending_takes_effect
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -263,14 +306,42 @@ private fun GroupCard(
 
             Spacer(Modifier.height(8.dp))
 
-            OutlinedButton(
-                onClick = onEditLimitClick
+            // US-09: Show pending deletion status.
+            if (isPendingDeletion) {
+
+                Text(
+                    text = "Will be deleted tomorrow at 00:00",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Edit Limit and Edit Group buttons.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(stringResource(R.string.edit_limit))
+
+                OutlinedButton(
+                    onClick = onEditLimitClick,
+                    enabled = !isPendingDeletion
+                ) {
+                    Text(stringResource(R.string.edit_limit))
+                }
+
+                OutlinedButton(
+                    onClick = onEditGroupClick,
+                    enabled = !isPendingDeletion
+                ) {
+                    Text("Edit Group")
+                }
             }
         }
     }
 }
+
+// ---------- Edit Limit Dialog ----------
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -286,6 +357,7 @@ private fun EditLimitDialog(
     // daily minutes, limit type, weekly minutes (0 = no weekly limit)
     onSave: (Int, LimitType, Int) -> Unit
 ) {
+
     var selectedMinutes by remember(
         currentTimeLimit,
         currentLimitType
@@ -338,10 +410,13 @@ private fun EditLimitDialog(
     )
 
     AlertDialog(
+
         onDismissRequest = onDismiss,
+
         title = {
             Text(stringResource(R.string.edit_time_limit))
         },
+
         text = {
             // The dialog is taller with the weekly limit: it scrolls on small screens
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -353,6 +428,7 @@ private fun EditLimitDialog(
                         }
                     }
                 ) {
+
                     OutlinedTextField(
                         value = timeOptions.find {
                             it.first == selectedMinutes
@@ -366,7 +442,9 @@ private fun EditLimitDialog(
                         enabled = !isSaving,
                         label = {
                             Text(
-                                stringResource(R.string.daily_time_limit)
+                                stringResource(
+                                    R.string.daily_time_limit
+                                )
                             )
                         },
                         trailingIcon = {
@@ -387,9 +465,13 @@ private fun EditLimitDialog(
                             expanded = false
                         }
                     ) {
+
                         timeOptions.forEach { (minutes, label) ->
+
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = {
+                                    Text(label)
+                                },
                                 onClick = {
                                     selectedMinutes = minutes
                                     expanded = false
@@ -409,6 +491,7 @@ private fun EditLimitDialog(
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+
                     FilterChip(
                         selected = selectedType == LimitType.HARD,
                         onClick = {
@@ -463,27 +546,36 @@ private fun EditLimitDialog(
                     )
                 }
 
+                // US-15: Inform users about delayed hard limit edits.
                 if (showNextDayNotice) {
+
                     Spacer(Modifier.height(8.dp))
 
                     Text(
-                        text = stringResource(R.string.hard_limit_change_notice),
+                        text = stringResource(
+                            R.string.hard_limit_change_notice
+                        ),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
 
                 if (hasError) {
+
                     Spacer(Modifier.height(8.dp))
 
                     Text(
-                        text = stringResource(R.string.limit_update_error),
+                        text = stringResource(
+                            R.string.limit_update_error
+                        ),
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
         },
+
         confirmButton = {
+
             TextButton(
                 onClick = {
                     // US-13: 0 = no weekly limit. When the switch is on, the fields must be valid
@@ -515,7 +607,9 @@ private fun EditLimitDialog(
                 )
             }
         },
+
         dismissButton = {
+
             TextButton(
                 onClick = onDismiss,
                 enabled = !isSaving
@@ -525,6 +619,8 @@ private fun EditLimitDialog(
         }
     )
 }
+
+// ---------- Limit Label ----------
 
 // "Hard" or "Soft"
 @Composable
@@ -539,7 +635,9 @@ private fun limitTypeText(limitType: LimitType): String {
 // Text of a time limit in minutes, for example "2 hours"
 @Composable
 private fun limitLabel(minutes: Int): String {
+
     return when (minutes) {
+
         0 -> stringResource(R.string.no_limit)
         60 -> stringResource(R.string.one_hour)
         90 -> stringResource(R.string.one_hour_thirty_minutes)
@@ -550,9 +648,16 @@ private fun limitLabel(minutes: Int): String {
         360 -> stringResource(R.string.six_hours)
         480 -> stringResource(R.string.eight_hours)
         600 -> stringResource(R.string.ten_hours)
-        else -> pluralStringResource(R.plurals.minutes_count, minutes, minutes)
+
+        else -> pluralStringResource(
+            R.plurals.minutes_count,
+            minutes,
+            minutes
+        )
     }
 }
+
+// ---------- Limit Summary ----------
 
 // Minutes of the preset daily limits: they already have a text ("1 hour 30 minutes")
 private val PRESET_MINUTES = setOf(60, 90, 120, 180, 240, 300, 360, 480, 600)
@@ -577,22 +682,36 @@ private fun limitSummary(
     @StringRes withTypeRes: Int,
     @StringRes noLimitRes: Int
 ): String {
+
     return if (minutes == 0) {
+
         stringResource(noLimitRes)
+
     } else {
-        val typeText = if (limitType == LimitType.HARD) {
-            stringResource(R.string.hard)
-        } else {
-            stringResource(R.string.soft)
-        }
-        stringResource(withTypeRes, limitLabel(minutes), typeText)
+
+        val typeText =
+            if (limitType == LimitType.HARD) {
+                stringResource(R.string.hard)
+            } else {
+                stringResource(R.string.soft)
+            }
+
+        stringResource(
+            withTypeRes,
+            limitLabel(minutes),
+            typeText
+        )
     }
 }
+
+// ---------- Preview ----------
 
 @Preview(showBackground = true)
 @Composable
 private fun DashboardScreenPreview() {
+
     StopScrollingTheme {
+
         DashboardScreen(
             groups = emptyList(),
             onNewGroupClick = {}
