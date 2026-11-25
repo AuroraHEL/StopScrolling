@@ -45,6 +45,44 @@ class UsageTracker(context: Context) {
         return packageNames.sumOf { usagePerPackage[it] ?: 0L }
     }
 
+    // US-13: the past days of the week are read at most once per minute
+    private val weeklyCache = WeeklyUsageCache { weekStart, todayStart ->
+        // The calculator also needs the events before the start to know if an app was
+        // already open, as for the day. It counts only the time between the two limits.
+        val events = readForegroundEvents(weekStart - LOOKBACK_MILLIS, todayStart)
+        UsageCalculator.sumForegroundTime(events, weekStart, todayStart)
+    }
+
+    /*
+     * Foreground time of every app this week (since Monday 00:00 local time), in milliseconds.
+     * US-13: past days (cached for 1 minute) + today (read live).
+     */
+    fun getWeekUsagePerPackage(nowMillis: Long = System.currentTimeMillis()): Map<String, Long> {
+        val weekStart = WeekBoundary.startOfWeekMillis(nowMillis)
+        val todayStart = DayBoundary.startOfDayMillis(nowMillis)
+
+        val pastDays = weeklyCache.getPastDays(nowMillis, weekStart, todayStart)
+        val today = getTodayUsagePerPackage(nowMillis)
+
+        val total = pastDays.toMutableMap()
+        for ((packageName, millis) in today) {
+            total[packageName] = (total[packageName] ?: 0L) + millis
+        }
+        return total
+    }
+
+    /*
+     * Total foreground time this week of a list of apps (for example all the apps
+     * of a group), in milliseconds.
+     */
+    fun getWeekUsageForPackages(
+        packageNames: Collection<String>,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Long {
+        val usagePerPackage = getWeekUsagePerPackage(nowMillis)
+        return packageNames.sumOf { usagePerPackage[it] ?: 0L }
+    }
+
     /*
      * Reads the system events between [startMillis] and [endMillis] and keeps only
      * "app to foreground" and "app to background". The events are sorted by time.

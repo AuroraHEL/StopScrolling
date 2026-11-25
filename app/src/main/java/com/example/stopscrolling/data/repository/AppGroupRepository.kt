@@ -23,7 +23,9 @@ interface AppGroupRepository {
         name: String,
         packageNames: List<String>,
         timeLimit: Int = 0,
-        limitType: LimitType = LimitType.HARD
+        limitType: LimitType = LimitType.HARD,
+        // US-13: weekly limit in minutes, 0 = no weekly limit
+        weeklyLimit: Int = 0
     ): Int
 
     /*
@@ -51,7 +53,22 @@ interface AppGroupRepository {
         nowMillis: Long = System.currentTimeMillis()
     ): Int
 
-    // US-15: Apply pending limit changes whose time has come.
+    /*
+     * US-13: saves the daily limit AND the weekly limit of a group in one transaction
+     * (weeklyLimit 0 = no weekly limit). Both follow the rule of US-15: a change to a hard
+     * limit starts at 00:00 of the next day. Returns false if the group does not exist.
+     */
+    suspend fun updateLimits(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType,
+        weeklyLimit: Int
+    ): Boolean
+
+    /*
+     * US-15: applies the pending changes whose time has come.
+     * Returns how many groups were changed.
+     */
     suspend fun applyDuePendingChanges(): Int
 }
 
@@ -102,11 +119,15 @@ class AppGroupRepositoryImpl(
         name: String,
         packageNames: List<String>,
         timeLimit: Int,
-        limitType: LimitType
+        limitType: LimitType,
+        weeklyLimit: Int
     ): Int = database.withTransaction {
 
         require(timeLimit >= 0) {
             "Time limit cannot be negative"
+        }
+        require(weeklyLimit >= 0) {
+            "Weekly limit cannot be negative"
         }
 
         require(name.isNotBlank())
@@ -115,7 +136,8 @@ class AppGroupRepositoryImpl(
             AppGroup(
                 name = name.trim(),
                 timeLimit = timeLimit,
-                limitType = limitType
+                limitType = limitType,
+                weeklyLimit = weeklyLimit
             )
         ).toInt()
 
@@ -165,6 +187,41 @@ class AppGroupRepositoryImpl(
         )
 
         dao.updateGroupRow(updated) > 0
+    }
+
+    // US-13: Update the daily and the weekly limit together.
+    override suspend fun updateLimits(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType,
+        weeklyLimit: Int
+    ): Boolean {
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
+        require(weeklyLimit >= 0) {
+            "Weekly limit cannot be negative"
+        }
+
+        return database.withTransaction {
+            val saved = dao.getGroup(groupId)
+
+            // A group scheduled for deletion cannot be edited.
+            if (
+                saved == null ||
+                pendingDao.getPendingGroupDeletion(groupId) != null
+            ) {
+                false
+            } else {
+                val now = currentTimeMillis()
+                val current = PendingLimits.applyDue(saved, now)
+                // The weekly edit goes first: both edits must look at the limit as it was
+                // before this edit (for example a soft group that becomes hard now)
+                val weeklyEdited = PendingLimits.applyWeeklyEdit(current, weeklyLimit, now)
+                val updated = PendingLimits.applyEdit(weeklyEdited, timeLimit, limitType, now)
+                dao.updateGroupRow(updated) > 0
+            }
+        }
     }
 
     // ---------- Update Group ----------

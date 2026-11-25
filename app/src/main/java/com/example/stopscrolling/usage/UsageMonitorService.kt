@@ -34,6 +34,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.example.stopscrolling.notification.HardLimitWarningNotifier
+import com.example.stopscrolling.data.LimitType
 
 /*
  * Foreground service that checks which app is on the screen.
@@ -59,6 +61,15 @@ class UsageMonitorService : Service() {
         (application as StopScrollingApp).appGroupRepository
     }
 
+    private val warningStore by lazy {
+        HardLimitWarningStore(this)
+    }
+
+    private val warningNotifier by lazy {
+        HardLimitWarningNotifier(this)
+    }
+
+    // The groups come from the database, through the repository of the app
     private val groupLookup: RegulatedGroupLookup by lazy {
         RoomRegulatedGroupLookup(
             appGroupRepository::observeGroups
@@ -410,23 +421,32 @@ class UsageMonitorService : Service() {
         }
 
         val states = groups.map { group ->
-
+            // US-13: the weekly values are read only if the group has a weekly limit
+            // (the past days of the week come from a cache refreshed once per minute)
+            val hasWeeklyLimit = group.weeklyLimitMinutes > 0
             GroupLimitState(
                 group = group,
-                usedMillis =
-                    tracker.getTodayUsageForPackages(
-                        group.packageNames
-                    ),
-                extraMinutes =
-                    extensionLookup.extraMinutesToday(
-                        group.groupId
-                    )
+                usedMillis = tracker.getTodayUsageForPackages(group.packageNames),
+                extraMinutes = extensionLookup.extraMinutesToday(group.groupId),
+                weeklyUsedMillis = if (hasWeeklyLimit) {
+                    tracker.getWeekUsageForPackages(group.packageNames)
+                } else {
+                    0L
+                },
+                weeklyExtraMinutes = if (hasWeeklyLimit) {
+                    extensionLookup.extraMinutesThisWeek(group.groupId)
+                } else {
+                    0
+                }
             )
         }
 
         val result = LimitEvaluator.evaluate(states)
 
         val decision = result.decision
+        // US-16: Send a warning when a daily hard limit
+        // has five minutes or less remaining.
+        checkHardLimitWarnings(states)
 
         withContext(Dispatchers.Main) {
 
@@ -454,22 +474,26 @@ class UsageMonitorService : Service() {
             groupName = group.name,
             limitType = group.limitType,
             usedMinutes = decision.usedMinutes,
-            limitMinutes = group.timeLimitMinutes
+            // US-13: the limit that was reached (today or this week), not always the daily one
+            limitMinutes = decision.limitMinutes,
+            limitKind = decision.limitKind
         )
 
         val shown = shownRequest
-
+        // Same screen already visible: nothing to do
+        // (the daily and the weekly screens of the same group are two different screens)
         if (
             shown != null &&
             shown.groupId == request.groupId &&
             shown.limitType == request.limitType &&
+            shown.limitKind == request.limitKind &&
             shown.limitMinutes == request.limitMinutes
         ) {
 
             return
         }
 
-        hideOverlayNow()
+        hideOverlayNow() // another group or type: replace it
 
         val ok = overlayManager.show {
 
@@ -570,6 +594,37 @@ class UsageMonitorService : Service() {
             hideOverlayNow()
         }
     }
+
+    private fun checkHardLimitWarnings(states: List<GroupLimitState>) {
+        for (state in states) {
+            val group = state.group
+
+            if (group.limitType != LimitType.HARD) continue
+
+            if (!HardLimitWarningEvaluator.shouldWarn(
+                    group = group,
+                    usedMillis = state.usedMillis
+                )
+            ) {
+                continue
+            }
+
+            if (warningStore.wasWarnedToday(group.groupId)) {
+                continue
+            }
+
+            val sent = warningNotifier.showWarning(
+                groupId = group.groupId,
+                groupName = group.name
+            )
+
+            if (sent) {
+                warningStore.markWarnedToday(group.groupId)
+                Log.d(TAG, "Hard limit warning sent for group ${group.groupId}")
+            }
+        }
+    }
+
 
     // ---------- Notification ----------
 

@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
+import com.example.stopscrolling.data.LimitKind
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
 
 /**
@@ -38,7 +39,9 @@ fun HardLockScreen(
     groupName: String,
     limitMinutes: Int,
     onGoHome: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // US-13: says if the daily or the weekly limit was reached
+    limitKind: LimitKind = LimitKind.DAILY
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -60,7 +63,13 @@ fun HardLockScreen(
             )
             Spacer(Modifier.height(24.dp))
             Text(
-                text = stringResource(R.string.overlay_hard_title),
+                text = stringResource(
+                    if (limitKind == LimitKind.WEEKLY) {
+                        R.string.overlay_hard_title_weekly
+                    } else {
+                        R.string.overlay_hard_title
+                    }
+                ),
                 style = MaterialTheme.typography.headlineMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.semantics { heading() }
@@ -68,7 +77,11 @@ fun HardLockScreen(
             Spacer(Modifier.height(12.dp))
             Text(
                 text = stringResource(
-                    R.string.overlay_hard_message,
+                    if (limitKind == LimitKind.WEEKLY) {
+                        R.string.overlay_hard_message_weekly
+                    } else {
+                        R.string.overlay_hard_message
+                    },
                     formatDuration(limitMinutes),
                     groupName
                 ),
