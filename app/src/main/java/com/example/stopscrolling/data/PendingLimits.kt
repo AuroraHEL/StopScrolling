@@ -103,4 +103,43 @@ object PendingLimits {
             group.pendingWeeklyLimit != null
         return if (somethingWaiting) group else group.copy(pendingFrom = null)
     }
+
+    // ----- US-13: weekly limit -----
+
+    /* True if the group has an active weekly HARD limit (a weekly limit of 0 means none). */
+    fun isUnderWeeklyHardLimit(group: AppGroup): Boolean {
+        return group.limitType == LimitType.HARD && group.weeklyLimit > 0
+    }
+
+    /*
+     * Returns the group after the user edited its weekly limit (0 = remove the weekly limit).
+     * Same rule as [applyEdit] for the daily limit:
+     * - Group with a weekly hard limit: the edit is saved as pending until 00:00 of the next day.
+     *   A second edit replaces the first one.
+     * - Any other group (first weekly limit, soft limit): the edit works at once.
+     */
+    fun applyWeeklyEdit(
+        group: AppGroup,
+        newWeeklyLimit: Int,
+        nowMillis: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): AppGroup {
+        if (!isUnderWeeklyHardLimit(group)) {
+            val changed = group.copy(
+                weeklyLimit = newWeeklyLimit,
+                pendingWeeklyLimit = null
+            )
+            return clearPendingFromIfUnused(changed)
+        }
+
+        // The user went back to the current weekly limit: there is nothing to wait for
+        if (newWeeklyLimit == group.weeklyLimit) {
+            return clearPendingFromIfUnused(group.copy(pendingWeeklyLimit = null))
+        }
+
+        return group.copy(
+            pendingWeeklyLimit = newWeeklyLimit,
+            pendingFrom = DayBoundary.startOfNextDayMillis(nowMillis, timeZone)
+        )
+    }
 }

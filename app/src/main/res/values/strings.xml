@@ -91,4 +91,9 @@
     <string name="overlay_hard_message_weekly">You reached your weekly limit of %1$s for %2$s. These apps are blocked until Monday.</string>
     <string name="overlay_soft_title_weekly">Weekly soft limit reached</string>
     <string name="overlay_soft_message_weekly">You used %1$s this week in %2$s, and your weekly limit was %3$s. Do you really want to keep going?</string>
+
+    <!-- US-13: weekly limit on the group card -->
+    <string name="weekly_limit_with_type">Weekly limit: %1$s (%2$s)</string>
+    <string name="pending_weekly_limit_with_type">Pending weekly limit: %1$s (%2$s)</string>
+    <string name="pending_weekly_limit_none">Pending weekly limit: No limit</string>
 </resources>

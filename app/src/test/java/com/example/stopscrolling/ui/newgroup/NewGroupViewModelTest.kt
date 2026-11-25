@@ -342,6 +342,15 @@ class NewGroupViewModelTest {
             return false
         }
 
+        override suspend fun updateLimits(
+            groupId: Int,
+            timeLimit: Int,
+            limitType: LimitType,
+            weeklyLimit: Int
+        ): Boolean {
+            return false
+        }
+
         override suspend fun applyDuePendingChanges(): Int = 0
     }
 }

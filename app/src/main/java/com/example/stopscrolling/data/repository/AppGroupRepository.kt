@@ -35,6 +35,18 @@ interface AppGroupRepository {
     ): Boolean
 
     /*
+     * US-13: saves the daily limit AND the weekly limit of a group in one transaction
+     * (weeklyLimit 0 = no weekly limit). Both follow the rule of US-15: a change to a hard
+     * limit starts at 00:00 of the next day. Returns false if the group does not exist.
+     */
+    suspend fun updateLimits(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType,
+        weeklyLimit: Int
+    ): Boolean
+
+    /*
      * US-15: applies the pending changes whose time has come.
      * Returns how many groups were changed.
      */
@@ -106,6 +118,35 @@ class AppGroupRepositoryImpl(
                 // did not run at midnight), so that we edit the real current limit
                 val current = PendingLimits.applyDue(saved, now)
                 val updated = PendingLimits.applyEdit(current, timeLimit, limitType, now)
+                dao.updateGroupRow(updated) > 0
+            }
+        }
+    }
+
+    override suspend fun updateLimits(
+        groupId: Int,
+        timeLimit: Int,
+        limitType: LimitType,
+        weeklyLimit: Int
+    ): Boolean {
+        require(timeLimit >= 0) {
+            "Time limit cannot be negative"
+        }
+        require(weeklyLimit >= 0) {
+            "Weekly limit cannot be negative"
+        }
+
+        return database.withTransaction {
+            val saved = dao.getGroup(groupId)
+            if (saved == null) {
+                false
+            } else {
+                val now = currentTimeMillis()
+                val current = PendingLimits.applyDue(saved, now)
+                // The weekly edit goes first: both edits must look at the limit as it was
+                // before this edit (for example a soft group that becomes hard now)
+                val weeklyEdited = PendingLimits.applyWeeklyEdit(current, weeklyLimit, now)
+                val updated = PendingLimits.applyEdit(weeklyEdited, timeLimit, limitType, now)
                 dao.updateGroupRow(updated) > 0
             }
         }
