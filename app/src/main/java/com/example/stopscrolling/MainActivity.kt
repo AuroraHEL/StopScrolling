@@ -12,12 +12,24 @@ import android.os.Build
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.example.stopscrolling.usage.UsageMonitorService
+import android.widget.Toast
 
 class MainActivity : ComponentActivity() {
 
     // Asks the user to allow notifications (needed from Android 13 to see the service notification)
     private val notificationPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+        registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+
+            if (!isGranted) {
+                Toast.makeText(
+                    this,
+                    "Notifications are disabled. You may miss hard limit warnings.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
