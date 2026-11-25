@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -48,15 +50,20 @@ import com.example.stopscrolling.R
 import com.example.stopscrolling.data.GroupWithApps
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.PendingLimits
+import com.example.stopscrolling.ui.newgroup.WeeklyLimitSection
+import com.example.stopscrolling.ui.overlay.formatDuration
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
+import com.example.stopscrolling.util.WeeklyLimitError
+import com.example.stopscrolling.util.WeeklyLimitValidator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     groups: List<GroupWithApps>,
     onNewGroupClick: () -> Unit,
-    onUpdateLimit: (Int, Int, LimitType, () -> Unit) -> Unit =
-        { _, _, _, _ -> },
+    // groupId, daily minutes, limit type, weekly minutes (0 = none), called when saved
+    onUpdateLimit: (Int, Int, LimitType, Int, () -> Unit) -> Unit =
+        { _, _, _, _, _ -> },
     isUpdatingLimit: Boolean = false,
     limitUpdateError: Boolean = false,
     onClearLimitUpdateError: () -> Unit = {}
@@ -130,8 +137,11 @@ fun DashboardScreen(
             // If a change is already waiting, the dialog starts with it (the latest edit)
             currentTimeLimit = item.group.pendingTimeLimit ?: item.group.timeLimit,
             currentLimitType = item.group.pendingLimitType ?: item.group.limitType,
+            // US-13: the dialog also starts with the latest weekly edit
+            currentWeeklyLimit = item.group.pendingWeeklyLimit ?: item.group.weeklyLimit,
             // US-15: a change to a hard limit starts only at midnight
             showNextDayNotice = PendingLimits.isUnderHardLimit(item.group),
+            showWeeklyNextDayNotice = PendingLimits.isUnderWeeklyHardLimit(item.group),
             isSaving = isUpdatingLimit,
             hasError = limitUpdateError,
             onDismiss = {
@@ -140,11 +150,12 @@ fun DashboardScreen(
                     onClearLimitUpdateError()
                 }
             },
-            onSave = { minutes, type ->
+            onSave = { minutes, type, weeklyMinutes ->
                 onUpdateLimit(
                     item.group.id,
                     minutes,
-                    type
+                    type,
+                    weeklyMinutes
                 ) {
                     editingGroup = null
                 }
@@ -213,6 +224,40 @@ private fun GroupCard(
                 )
             }
 
+            // US-13: weekly limit, shown only if the group has one or a change is waiting
+            if (item.group.weeklyLimit > 0) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = stringResource(
+                        R.string.weekly_limit_with_type,
+                        formatDuration(item.group.weeklyLimit),
+                        limitTypeText(item.group.limitType)
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            val pendingWeekly = item.group.pendingWeeklyLimit
+            if (pendingWeekly != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = if (pendingWeekly == 0) {
+                        stringResource(R.string.pending_weekly_limit_none)
+                    } else {
+                        stringResource(
+                            R.string.pending_weekly_limit_with_type,
+                            formatDuration(pendingWeekly),
+                            limitTypeText(item.group.pendingLimitType ?: item.group.limitType)
+                        )
+                    },
+                    style = MaterialTheme.typography.bodySmall
+                )
+                Text(
+                    text = stringResource(R.string.pending_takes_effect),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
             Spacer(Modifier.height(8.dp))
 
             OutlinedButton(
@@ -229,11 +274,14 @@ private fun GroupCard(
 private fun EditLimitDialog(
     currentTimeLimit: Int,
     currentLimitType: LimitType,
+    currentWeeklyLimit: Int,
     showNextDayNotice: Boolean,
+    showWeeklyNextDayNotice: Boolean,
     isSaving: Boolean,
     hasError: Boolean,
     onDismiss: () -> Unit,
-    onSave: (Int, LimitType) -> Unit
+    // daily minutes, limit type, weekly minutes (0 = no weekly limit)
+    onSave: (Int, LimitType, Int) -> Unit
 ) {
     var selectedMinutes by remember(
         currentTimeLimit,
@@ -248,6 +296,18 @@ private fun EditLimitDialog(
     ) {
         mutableStateOf(currentLimitType)
     }
+
+    // US-13: weekly limit fields (same fields as the new group screen)
+    var weeklyEnabled by remember(currentWeeklyLimit) {
+        mutableStateOf(currentWeeklyLimit > 0)
+    }
+    var weeklyHoursText by remember(currentWeeklyLimit) {
+        mutableStateOf(if (currentWeeklyLimit > 0) (currentWeeklyLimit / 60).toString() else "")
+    }
+    var weeklyMinutesText by remember(currentWeeklyLimit) {
+        mutableStateOf(if (currentWeeklyLimit > 0) (currentWeeklyLimit % 60).toString() else "")
+    }
+    var weeklyError by remember { mutableStateOf<WeeklyLimitError?>(null) }
 
     var expanded by remember {
         mutableStateOf(false)
@@ -280,7 +340,8 @@ private fun EditLimitDialog(
             Text(stringResource(R.string.edit_time_limit))
         },
         text = {
-            Column {
+            // The dialog is taller with the weekly limit: it scrolls on small screens
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = {
@@ -368,6 +429,37 @@ private fun EditLimitDialog(
                     )
                 }
 
+                Spacer(Modifier.height(16.dp))
+
+                WeeklyLimitSection(
+                    enabled = weeklyEnabled,
+                    hoursText = weeklyHoursText,
+                    minutesText = weeklyMinutesText,
+                    error = weeklyError,
+                    onEnabledChange = {
+                        weeklyEnabled = it
+                        weeklyError = null
+                    },
+                    onHoursChange = {
+                        weeklyHoursText = it
+                        weeklyError = null
+                    },
+                    onMinutesChange = {
+                        weeklyMinutesText = it
+                        weeklyError = null
+                    }
+                )
+
+                // (the same notice is shown once if the daily limit already shows it)
+                if (showWeeklyNextDayNotice && !showNextDayNotice) {
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = stringResource(R.string.hard_limit_change_notice),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
                 if (showNextDayNotice) {
                     Spacer(Modifier.height(8.dp))
 
@@ -391,7 +483,23 @@ private fun EditLimitDialog(
         confirmButton = {
             TextButton(
                 onClick = {
-                    onSave(selectedMinutes, selectedType)
+                    // US-13: 0 = no weekly limit. When the switch is on, the fields must be valid
+                    // (the weekly limit must also not be lower than the daily limit chosen here).
+                    val weeklyMinutes: Int? = if (weeklyEnabled) {
+                        WeeklyLimitValidator.parseMinutes(weeklyHoursText, weeklyMinutesText)
+                    } else {
+                        0
+                    }
+                    val error = if (weeklyEnabled) {
+                        WeeklyLimitValidator.validate(weeklyMinutes, selectedMinutes)
+                    } else {
+                        null
+                    }
+                    if (error != null) {
+                        weeklyError = error
+                    } else {
+                        onSave(selectedMinutes, selectedType, weeklyMinutes ?: 0)
+                    }
                 },
                 enabled = !isSaving
             ) {
@@ -413,6 +521,16 @@ private fun EditLimitDialog(
             }
         }
     )
+}
+
+// "Hard" or "Soft"
+@Composable
+private fun limitTypeText(limitType: LimitType): String {
+    return if (limitType == LimitType.HARD) {
+        stringResource(R.string.hard)
+    } else {
+        stringResource(R.string.soft)
+    }
 }
 
 // Text of a time limit in minutes, for example "2 hours"

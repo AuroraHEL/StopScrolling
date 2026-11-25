@@ -181,6 +181,66 @@ class DashboardViewModelTest {
             assertTrue(viewModel.limitUpdateError.value)
         }
 
+    // US-13: weekly limit
+
+    @Test
+    fun updateLimit_withWeeklyLimit_savesBothLimitsTogether() =
+        runTest(testDispatcher) {
+            var successCalled = false
+
+            viewModel.updateLimit(
+                groupId = 1,
+                timeLimit = 60,
+                limitType = LimitType.HARD,
+                weeklyLimit = 300,
+                onSuccess = { successCalled = true }
+            )
+            advanceUntilIdle()
+
+            assertEquals(1, fakeRepository.updateLimitsCount)
+            assertEquals(0, fakeRepository.updateCount)
+            assertEquals(300, fakeRepository.updatedWeeklyLimit)
+            assertEquals(60, fakeRepository.updatedTimeLimit)
+            assertTrue(successCalled)
+            assertFalse(viewModel.limitUpdateError.value)
+        }
+
+    @Test
+    fun updateLimit_withoutWeeklyLimit_keepsTheDailyOnlyPath() =
+        runTest(testDispatcher) {
+            fakeRepository.updateResult = true
+
+            viewModel.updateLimit(
+                groupId = 1,
+                timeLimit = 60,
+                limitType = LimitType.SOFT,
+                onSuccess = {}
+            )
+            advanceUntilIdle()
+
+            assertEquals(1, fakeRepository.updateCount)
+            assertEquals(0, fakeRepository.updateLimitsCount)
+        }
+
+    @Test
+    fun updateLimit_withWeeklyLimit_whenGroupMissing_showsError() =
+        runTest(testDispatcher) {
+            fakeRepository.updateLimitsResult = false
+            var successCalled = false
+
+            viewModel.updateLimit(
+                groupId = 1,
+                timeLimit = 60,
+                limitType = LimitType.HARD,
+                weeklyLimit = 300,
+                onSuccess = { successCalled = true }
+            )
+            advanceUntilIdle()
+
+            assertFalse(successCalled)
+            assertTrue(viewModel.limitUpdateError.value)
+        }
+
     private class FakeAppGroupRepository : AppGroupRepository {
 
         private val groupsFlow =
@@ -213,6 +273,25 @@ class DashboardViewModelTest {
             updatedLimitType = limitType
 
             return updateResult
+        }
+
+        // US-13
+        var updateLimitsCount = 0
+        var updatedWeeklyLimit = -1
+        var updateLimitsResult = true
+
+        override suspend fun updateLimits(
+            groupId: Int,
+            timeLimit: Int,
+            limitType: LimitType,
+            weeklyLimit: Int
+        ): Boolean {
+            updateLimitsCount++
+            updatedGroupId = groupId
+            updatedTimeLimit = timeLimit
+            updatedLimitType = limitType
+            updatedWeeklyLimit = weeklyLimit
+            return updateLimitsResult
         }
 
         override suspend fun applyDuePendingChanges(): Int = 0

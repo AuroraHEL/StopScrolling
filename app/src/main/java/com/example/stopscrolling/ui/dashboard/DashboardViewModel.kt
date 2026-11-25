@@ -41,6 +41,8 @@ class DashboardViewModel(
         groupId: Int,
         timeLimit: Int,
         limitType: LimitType,
+        // US-13: null = the weekly limit is not changed (only the daily limit is saved)
+        weeklyLimit: Int? = null,
         onSuccess: () -> Unit
     ) {
         if (_isUpdatingLimit.value) return
@@ -50,11 +52,20 @@ class DashboardViewModel(
 
         viewModelScope.launch {
             try {
-                val updated = repository.updateLimit(
-                    groupId = groupId,
-                    timeLimit = timeLimit,
-                    limitType = limitType
-                )
+                val updated = if (weeklyLimit == null) {
+                    repository.updateLimit(
+                        groupId = groupId,
+                        timeLimit = timeLimit,
+                        limitType = limitType
+                    )
+                } else {
+                    repository.updateLimits(
+                        groupId = groupId,
+                        timeLimit = timeLimit,
+                        limitType = limitType,
+                        weeklyLimit = weeklyLimit
+                    )
+                }
 
                 if (updated) {
                     onSuccess()
