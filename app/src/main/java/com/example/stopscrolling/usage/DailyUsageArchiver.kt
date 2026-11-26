@@ -8,46 +8,56 @@ import kotlinx.coroutines.withContext
 import java.util.TimeZone
 
 /**
- * Archives the previous finished day's total phone usage into Room (US-27).
+ * Archives finished days' total phone usage into Room (US-27).
  *
- * Designed to be called at midnight (via DateChangeReceiver), on service startup,
- * and during periodic checks; once a day is stored, subsequent calls return immediately.
+ * Checks up to [maxBackfillDays] previous days (default 7, matching Android's UsageEvents
+ * retention window) so multi-day downtime gaps are backfilled once the phone turns back on.
+ * Already-archived days are skipped without re-querying UsageStatsManager.
  */
 class DailyUsageArchiver(
     private val repository: DailyUsageRepository,
     private val hasPermission: () -> Boolean,
     private val computeRangeTotalMillis: (Long, Long) -> Long,
+    private val maxBackfillDays: Int = DEFAULT_BACKFILL_DAYS,
     private val timeZoneProvider: () -> TimeZone = { TimeZone.getDefault() },
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) {
 
     /**
-     * Archives yesterday's total usage if permission is granted and no row exists yet.
-     * Returns true if a new record was saved, false if skipped.
+     * Archives any unarchived finished days within the last [maxBackfillDays] days.
+     * Returns the number of newly saved day records.
      */
-    suspend fun archiveYesterdayIfNeeded(
+    suspend fun archiveMissingDaysIfNeeded(
         nowMillis: Long = System.currentTimeMillis()
-    ): Boolean {
-        if (!hasPermission()) return false
+    ): Int {
+        if (!hasPermission() || maxBackfillDays <= 0) return 0
 
         val zone = timeZoneProvider()
-        val todayStart = DayBoundary.startOfDayMillis(nowMillis, zone)
-        val yesterdayStart = DayBoundary.startOfPreviousDayMillis(nowMillis, zone)
+        var rangeEnd = DayBoundary.startOfDayMillis(nowMillis, zone)
+        var archivedCount = 0
 
-        if (repository.getByDayStart(yesterdayStart) != null) {
-            return false
+        repeat(maxBackfillDays) {
+            val rangeStart = DayBoundary.startOfPreviousDayMillis(rangeEnd, zone)
+            if (repository.getByDayStart(rangeStart) == null) {
+                val totalMillis = withContext(ioDispatcher) {
+                    computeRangeTotalMillis(rangeStart, rangeEnd)
+                }.coerceAtLeast(0L)
+
+                repository.save(
+                    DailyUsage(
+                        dayStartMillis = rangeStart,
+                        totalMillis = totalMillis
+                    )
+                )
+                archivedCount++
+            }
+            rangeEnd = rangeStart
         }
 
-        val totalMillis = withContext(ioDispatcher) {
-            computeRangeTotalMillis(yesterdayStart, todayStart)
-        }.coerceAtLeast(0L)
+        return archivedCount
+    }
 
-        repository.save(
-            DailyUsage(
-                dayStartMillis = yesterdayStart,
-                totalMillis = totalMillis
-            )
-        )
-        return true
+    companion object {
+        const val DEFAULT_BACKFILL_DAYS = 7
     }
 }

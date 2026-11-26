@@ -6,7 +6,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
@@ -26,27 +25,27 @@ class DailyUsageArchiverTest {
     }
 
     @Test
-    fun archiveYesterdayIfNeeded_savesFinishedDayTotalAtMidnight() = runTest(testDispatcher) {
+    fun archiveMissingDays_savesFinishedDayTotalAtMidnight() = runTest(testDispatcher) {
         val fakeRepo = FakeDailyUsageRepository()
-        var queriedRange: Pair<Long, Long>? = null
+        val queriedRanges = mutableListOf<Pair<Long, Long>>()
         val archiver = DailyUsageArchiver(
             repository = fakeRepo,
             hasPermission = { true },
             computeRangeTotalMillis = { start, end ->
-                queriedRange = start to end
+                queriedRanges.add(start to end)
                 2 * 60 * 60_000L
             },
+            maxBackfillDays = 1,
             timeZoneProvider = { zone },
             ioDispatcher = testDispatcher
         )
 
-        val rightAfterMidnight = timeOf(26, 0, 1)
-        val archived = archiver.archiveYesterdayIfNeeded(rightAfterMidnight)
+        val archivedCount = archiver.archiveMissingDaysIfNeeded(timeOf(26, 0, 1))
 
         val expectedStart = timeOf(25, 0, 0)
         val expectedEnd = timeOf(26, 0, 0)
-        assertTrue(archived)
-        assertEquals(expectedStart to expectedEnd, queriedRange)
+        assertEquals(1, archivedCount)
+        assertEquals(listOf(expectedStart to expectedEnd), queriedRanges)
         assertEquals(
             DailyUsage(dayStartMillis = expectedStart, totalMillis = 2 * 60 * 60_000L),
             fakeRepo.getByDayStart(expectedStart)
@@ -54,10 +53,49 @@ class DailyUsageArchiverTest {
     }
 
     @Test
-    fun archiveYesterdayIfNeeded_skipsWhenAlreadyArchived() = runTest(testDispatcher) {
+    fun archiveMissingDays_backfillsMultiDayGapAndSkipsAlreadyArchivedDays() =
+        runTest(testDispatcher) {
+            val fakeRepo = FakeDailyUsageRepository()
+            val day23Start = timeOf(23, 0, 0)
+            val day24Start = timeOf(24, 0, 0)
+            val day25Start = timeOf(25, 0, 0)
+
+            // Day 23 was archived before the phone was off for 2 days (days 24 and 25).
+            fakeRepo.save(DailyUsage(dayStartMillis = day23Start, totalMillis = 45 * 60_000L))
+
+            val queriedStarts = mutableListOf<Long>()
+            val totalsByDay = mapOf(
+                day24Start to 20 * 60_000L,
+                day25Start to 70 * 60_000L
+            )
+            val archiver = DailyUsageArchiver(
+                repository = fakeRepo,
+                hasPermission = { true },
+                computeRangeTotalMillis = { start, _ ->
+                    queriedStarts.add(start)
+                    totalsByDay[start] ?: 0L
+                },
+                maxBackfillDays = 3,
+                timeZoneProvider = { zone },
+                ioDispatcher = testDispatcher
+            )
+
+            val archivedCount = archiver.archiveMissingDaysIfNeeded(timeOf(26, 9, 0))
+
+            assertEquals(2, archivedCount)
+            assertEquals(listOf(day25Start, day24Start), queriedStarts)
+            assertEquals(45 * 60_000L, fakeRepo.getByDayStart(day23Start)?.totalMillis)
+            assertEquals(20 * 60_000L, fakeRepo.getByDayStart(day24Start)?.totalMillis)
+            assertEquals(70 * 60_000L, fakeRepo.getByDayStart(day25Start)?.totalMillis)
+        }
+
+    @Test
+    fun archiveMissingDays_skipsWhenAllDaysInWindowAlreadyArchived() = runTest(testDispatcher) {
         val fakeRepo = FakeDailyUsageRepository()
-        val yesterdayStart = timeOf(25, 0, 0)
-        fakeRepo.save(DailyUsage(dayStartMillis = yesterdayStart, totalMillis = 45 * 60_000L))
+        val day24Start = timeOf(24, 0, 0)
+        val day25Start = timeOf(25, 0, 0)
+        fakeRepo.save(DailyUsage(dayStartMillis = day24Start, totalMillis = 30 * 60_000L))
+        fakeRepo.save(DailyUsage(dayStartMillis = day25Start, totalMillis = 45 * 60_000L))
 
         var queryCount = 0
         val archiver = DailyUsageArchiver(
@@ -67,19 +105,19 @@ class DailyUsageArchiverTest {
                 queryCount++
                 999_000L
             },
+            maxBackfillDays = 2,
             timeZoneProvider = { zone },
             ioDispatcher = testDispatcher
         )
 
-        val archived = archiver.archiveYesterdayIfNeeded(timeOf(26, 8, 30))
+        val archivedCount = archiver.archiveMissingDaysIfNeeded(timeOf(26, 8, 30))
 
-        assertFalse(archived)
+        assertEquals(0, archivedCount)
         assertEquals(0, queryCount)
-        assertEquals(45 * 60_000L, fakeRepo.getByDayStart(yesterdayStart)?.totalMillis)
     }
 
     @Test
-    fun archiveYesterdayIfNeeded_skipsWithoutPermission() = runTest(testDispatcher) {
+    fun archiveMissingDays_skipsWithoutPermission() = runTest(testDispatcher) {
         val fakeRepo = FakeDailyUsageRepository()
         var queryCount = 0
         val archiver = DailyUsageArchiver(
@@ -93,15 +131,15 @@ class DailyUsageArchiverTest {
             ioDispatcher = testDispatcher
         )
 
-        val archived = archiver.archiveYesterdayIfNeeded(timeOf(26, 0, 5))
+        val archivedCount = archiver.archiveMissingDaysIfNeeded(timeOf(26, 0, 5))
 
-        assertFalse(archived)
+        assertEquals(0, archivedCount)
         assertEquals(0, queryCount)
         assertTrue(fakeRepo.getAll().isEmpty())
     }
 
     @Test
-    fun archiveYesterdayIfNeeded_archivesEachNewDayAfterMidnightRollover() = runTest(testDispatcher) {
+    fun archiveMissingDays_archivesNewDayAfterMidnightRollover() = runTest(testDispatcher) {
         val fakeRepo = FakeDailyUsageRepository()
         val day25Start = timeOf(25, 0, 0)
         val day26Start = timeOf(26, 0, 0)
@@ -113,13 +151,14 @@ class DailyUsageArchiverTest {
             repository = fakeRepo,
             hasPermission = { true },
             computeRangeTotalMillis = { start, _ -> totalsByDay[start] ?: 0L },
+            maxBackfillDays = 1,
             timeZoneProvider = { zone },
             ioDispatcher = testDispatcher
         )
 
-        assertTrue(archiver.archiveYesterdayIfNeeded(timeOf(26, 0, 0)))
-        assertFalse(archiver.archiveYesterdayIfNeeded(timeOf(26, 12, 0)))
-        assertTrue(archiver.archiveYesterdayIfNeeded(timeOf(27, 0, 0)))
+        assertEquals(1, archiver.archiveMissingDaysIfNeeded(timeOf(26, 0, 0)))
+        assertEquals(0, archiver.archiveMissingDaysIfNeeded(timeOf(26, 12, 0)))
+        assertEquals(1, archiver.archiveMissingDaysIfNeeded(timeOf(27, 0, 0)))
 
         assertEquals(2, fakeRepo.getAll().size)
         assertEquals(30 * 60_000L, fakeRepo.getByDayStart(day25Start)?.totalMillis)
@@ -127,17 +166,18 @@ class DailyUsageArchiverTest {
     }
 
     @Test
-    fun archiveYesterdayIfNeeded_clampsNegativeUsageToZero() = runTest(testDispatcher) {
+    fun archiveMissingDays_clampsNegativeUsageToZero() = runTest(testDispatcher) {
         val fakeRepo = FakeDailyUsageRepository()
         val archiver = DailyUsageArchiver(
             repository = fakeRepo,
             hasPermission = { true },
             computeRangeTotalMillis = { _, _ -> -5_000L },
+            maxBackfillDays = 1,
             timeZoneProvider = { zone },
             ioDispatcher = testDispatcher
         )
 
-        assertTrue(archiver.archiveYesterdayIfNeeded(timeOf(26, 0, 1)))
+        assertEquals(1, archiver.archiveMissingDaysIfNeeded(timeOf(26, 0, 1)))
         assertEquals(0L, fakeRepo.getByDayStart(timeOf(25, 0, 0))?.totalMillis)
     }
 

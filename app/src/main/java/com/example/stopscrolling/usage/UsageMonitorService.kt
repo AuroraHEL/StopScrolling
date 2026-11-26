@@ -326,16 +326,16 @@ class UsageMonitorService : Service() {
                 )
             }
 
-            // US-27: Archive yesterday's total phone usage once after midnight.
+            // US-27: Archive any unarchived finished days (at midnight or after multi-day downtime).
             try {
-                val archived = dailyUsageArchiver.archiveYesterdayIfNeeded()
-                if (archived) {
-                    Log.d(TAG, "Archived previous day's total usage into Room")
+                val archivedCount = dailyUsageArchiver.archiveMissingDaysIfNeeded()
+                if (archivedCount > 0) {
+                    Log.d(TAG, "Archived $archivedCount finished day(s) of usage into Room")
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.e(TAG, "Cannot archive previous day's usage", e)
+                Log.e(TAG, "Cannot archive previous days' usage", e)
             }
         }
     }
