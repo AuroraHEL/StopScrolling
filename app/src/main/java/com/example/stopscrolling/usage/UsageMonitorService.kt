@@ -80,6 +80,10 @@ class UsageMonitorService : Service() {
         (application as StopScrollingApp).extensionRepository
     }
 
+    private val dailyUsageArchiver by lazy {
+        (application as StopScrollingApp).dailyUsageArchiver
+    }
+
     private val overlayManager by lazy {
         OverlayManager(this)
     }
@@ -320,6 +324,18 @@ class UsageMonitorService : Service() {
                     "Cannot process pending changes",
                     e
                 )
+            }
+
+            // US-27: Archive yesterday's total phone usage once after midnight.
+            try {
+                val archived = dailyUsageArchiver.archiveYesterdayIfNeeded()
+                if (archived) {
+                    Log.d(TAG, "Archived previous day's total usage into Room")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Cannot archive previous day's usage", e)
             }
         }
     }

@@ -8,6 +8,10 @@ import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import com.example.stopscrolling.data.repository.RoomTimeExtensionRepository
 import com.example.stopscrolling.data.repository.TimeExtensionRepository
 import com.example.stopscrolling.notification.NotificationChannels
+import com.example.stopscrolling.data.repository.DailyUsageRepository
+import com.example.stopscrolling.data.repository.RoomDailyUsageRepository
+import com.example.stopscrolling.usage.DailyUsageArchiver
+import com.example.stopscrolling.usage.DailyUsageProvider
 
 class StopScrollingApp : Application() {
 
@@ -25,6 +29,24 @@ class StopScrollingApp : Application() {
 
     val extensionRepository: TimeExtensionRepository by lazy {
         RoomTimeExtensionRepository(database.timeExtensionDao())
+    }
+
+    val dailyUsageRepository: DailyUsageRepository by lazy {
+        RoomDailyUsageRepository(database.dailyUsageDao())
+    }
+
+    val dailyUsageProvider: DailyUsageProvider by lazy {
+        DailyUsageProvider(this)
+    }
+
+    val dailyUsageArchiver: DailyUsageArchiver by lazy {
+        DailyUsageArchiver(
+            repository = dailyUsageRepository,
+            hasPermission = { hasUsageStatsPermission(this) },
+            computeRangeTotalMillis = { startMillis, endMillis ->
+                dailyUsageProvider.getTotalUsageMillisForRange(startMillis, endMillis)
+            }
+        )
     }
 
     override fun onCreate() {

@@ -46,4 +46,18 @@ object DayBoundary {
         calendar.add(Calendar.DAY_OF_YEAR, 1)
         return calendar.timeInMillis
     }
+
+    /*
+     * Returns the start of the previous day (00:00 of yesterday), in milliseconds since the epoch.
+     * US-27 uses it at midnight to archive the finished day's total usage into Room.
+     */
+    fun startOfPreviousDayMillis(
+        nowMillis: Long = System.currentTimeMillis(),
+        timeZone: TimeZone = TimeZone.getDefault()
+    ): Long {
+        val calendar = Calendar.getInstance(timeZone)
+        calendar.timeInMillis = startOfDayMillis(nowMillis, timeZone)
+        calendar.add(Calendar.DAY_OF_YEAR, -1)
+        return calendar.timeInMillis
+    }
 }

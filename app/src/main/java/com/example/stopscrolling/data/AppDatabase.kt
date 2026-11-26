@@ -28,6 +28,8 @@ abstract class AppDatabase : RoomDatabase() {
 
     abstract fun pendingGroupChangeDao(): PendingGroupChangeDao
 
+    abstract fun dailyUsageDao(): DailyUsageDao
+
     companion object {
 
         @Volatile

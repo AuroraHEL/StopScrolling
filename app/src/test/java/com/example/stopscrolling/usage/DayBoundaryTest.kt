@@ -83,4 +83,41 @@ class DayBoundaryTest {
 
         assertEquals(expected.timeInMillis, next)
     }
+
+    @Test
+    fun startOfPreviousDay_isMidnightOfYesterday() {
+        val afternoon = timeOf(17, 15, 30, 45)
+
+        val previous = DayBoundary.startOfPreviousDayMillis(afternoon, zone)
+
+        assertEquals(timeOf(16, 0, 0, 0), previous)
+    }
+
+    @Test
+    fun startOfPreviousDay_onFirstOfMonth_isLastDayOfPreviousMonth() {
+        val firstOfDecember = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.DECEMBER, 1, 0, 5, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val previous = DayBoundary.startOfPreviousDayMillis(firstOfDecember, zone)
+
+        assertEquals(timeOf(30, 0, 0, 0), previous)
+    }
+
+    @Test
+    fun startOfPreviousDay_afterClocksGoBack_stillStartsAtMidnight() {
+        val dayAfterDst = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.OCTOBER, 26, 0, 1, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val expected = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.OCTOBER, 25, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val previous = DayBoundary.startOfPreviousDayMillis(dayAfterDst, zone)
+
+        assertEquals(expected, previous)
+    }
 }
