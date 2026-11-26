@@ -63,6 +63,9 @@ import com.example.stopscrolling.util.WeeklyLimitValidator
 fun DashboardScreen(
     groups: List<GroupWithApps>,
     onNewGroupClick: () -> Unit,
+    dailyUsageState: DailyUsageUiState = DailyUsageUiState(isLoading = false),
+    onOpenUsageSettings: () -> Unit = {},
+    onDailyUsageCardClick: (() -> Unit)? = null,
 
     // US-09: Pending deletions from the database.
     pendingChanges: List<PendingGroupChange> = emptyList(),
@@ -97,6 +100,13 @@ fun DashboardScreen(
                 .padding(16.dp)
                 .fillMaxSize()
         ) {
+            DailyUsageCard(
+                state = dailyUsageState,
+                onOpenUsageSettings = onOpenUsageSettings,
+                onClick = onDailyUsageCardClick
+            )
+
+            Spacer(Modifier.height(16.dp))
 
             Button(
                 onClick = onNewGroupClick,

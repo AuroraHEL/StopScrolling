@@ -54,4 +54,8 @@ class StopScrollingApp : Application() {
 
         NotificationChannels.createHardLimitWarningChannel(this)
     }
+
+    val dailyUsageProvider: DailyUsageProvider by lazy {
+        DailyUsageProvider(this)
+    }
 }
