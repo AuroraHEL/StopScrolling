@@ -28,7 +28,7 @@
 - StopScrolling already runs a foreground service (`UsageMonitorService`). The Bluetooth server can be added to it later, or run in a second service. The type `connectedDevice` needs the Bluetooth runtime permission to be granted before the service starts (Android 14 and higher).
 - The partner shows a notification when a message arrives (permission `POST_NOTIFICATIONS` on Android 13 and higher).
 
-**Test result:** TODO. For each case, write if the notification appeared and after how many seconds.
+**Test result:** 
 
 | Case on the partner phone | Notification? |
 |---|---|
