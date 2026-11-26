@@ -8,6 +8,7 @@ import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import com.example.stopscrolling.data.repository.RoomTimeExtensionRepository
 import com.example.stopscrolling.data.repository.TimeExtensionRepository
 import com.example.stopscrolling.notification.NotificationChannels
+import com.example.stopscrolling.usage.AppUsageBreakdownProvider
 
 class StopScrollingApp : Application() {
 
@@ -25,6 +26,10 @@ class StopScrollingApp : Application() {
 
     val extensionRepository: TimeExtensionRepository by lazy {
         RoomTimeExtensionRepository(database.timeExtensionDao())
+    }
+
+    val appUsageBreakdownProvider: AppUsageBreakdownProvider by lazy {
+        AppUsageBreakdownProvider(this)
     }
 
     override fun onCreate() {
