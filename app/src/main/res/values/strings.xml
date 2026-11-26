@@ -96,4 +96,16 @@
     <string name="weekly_limit_with_type">Weekly limit: %1$s (%2$s)</string>
     <string name="pending_weekly_limit_with_type">Pending weekly limit: %1$s (%2$s)</string>
     <string name="pending_weekly_limit_none">Pending weekly limit: No limit</string>
+
+    <!-- Per-app usage breakdown screen (US-28) -->
+    <string name="usage_breakdown_title">Daily App Breakdown</string>
+    <string name="usage_breakdown_total_label">Total Today</string>
+    <string name="usage_breakdown_loading">Loading app usage&#8230;</string>
+    <string name="usage_breakdown_empty_title">No app usage recorded today</string>
+    <string name="usage_breakdown_empty_subtitle">Once you use apps on your phone today, their screen time breakdown will appear here.</string>
+    <string name="usage_breakdown_row_content_description">%1$s, %2$s, %3$d percent of today\'s screen time</string>
+    <string name="usage_breakdown_percentage">%1$d%%</string>
+    <string name="duration_less_than_minute">&lt; 1 min</string>
+    <string name="usage_breakdown_permission_missing">Usage Access permission was revoked. Re-enable it in Settings to view your daily app breakdown.</string>
+    <string name="usage_breakdown_open_settings">Open Settings</string>
 </resources>
