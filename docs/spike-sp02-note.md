@@ -53,7 +53,7 @@
 - For Nearby Connections, the official list is longer (Wi-Fi permissions, `NEARBY_WIFI_DEVICES`, and the location on Android 10 to 12). We did not choose it.
 - Android 17 adds the permission `ACCESS_LOCAL_NETWORK` for the local Wi-Fi network. It is not needed for Classic Bluetooth.
 
-**Test result:** Only usual permissions were asked.
+**Test result:** Usual permissions were asked, but also "find, connect to, and determine the relative position of nearby devices".
 
 ### 4. How can two phones pair and recognize each other as trusted?
 
