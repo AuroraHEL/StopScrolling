@@ -19,7 +19,7 @@
 
 **Test result:** Message arrived, 2760 ms between message sent and ACK one way, and 2737 ms the other way. Probably slower than it would really be on real phones.
 
-<img src="images/SP02-01.png" width="400"><img src="images/SP02-02.png" width="400">
+<img src="images/SP02-01.jpg" width="400"><img src="images/SP02-02.png" width="400">
 
 ### 2. Can the receiving phone detect requests while the app is in the background?
 
