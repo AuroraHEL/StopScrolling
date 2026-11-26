@@ -5,6 +5,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 
+
+private const val LOOKBACK_MILLIS = 6 * 60 * 60 * 1000L
+
 /**
  * Reads today's phone usage via [UsageTracker] while excluding StopScrolling
  * and installed home launcher packages (US-27 and US-28).
@@ -61,6 +64,20 @@ class DailyUsageProvider(
         nowMillis: Long = System.currentTimeMillis()
     ): Long {
         val rawUsage = usageTracker.getTodayUsagePerPackage(nowMillis)
+        return DailyUsageAggregator.computeTotalUsageMillis(rawUsage, getExcludedPackages())
+    }
+
+    /**
+     * Returns total phone usage time (in milliseconds) across all non-excluded apps
+     * between [startMillis] and [endMillis]. Used by US-27 to archive a finished day at midnight.
+     */
+    fun getTotalUsageMillisForRange(
+        startMillis: Long,
+        endMillis: Long
+    ): Long {
+        if (endMillis <= startMillis) return 0L
+        val events = usageTracker.readForegroundEvents(startMillis - LOOKBACK_MILLIS, endMillis)
+        val rawUsage = UsageCalculator.sumForegroundTime(events, startMillis, endMillis)
         return DailyUsageAggregator.computeTotalUsageMillis(rawUsage, getExcludedPackages())
     }
 }
