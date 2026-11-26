@@ -8,6 +8,7 @@ import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import com.example.stopscrolling.data.repository.RoomTimeExtensionRepository
 import com.example.stopscrolling.data.repository.TimeExtensionRepository
 import com.example.stopscrolling.notification.NotificationChannels
+import com.example.stopscrolling.usage.DailyUsageProvider
 
 class StopScrollingApp : Application() {
 
@@ -31,5 +32,9 @@ class StopScrollingApp : Application() {
         super.onCreate()
 
         NotificationChannels.createHardLimitWarningChannel(this)
+    }
+
+    val dailyUsageProvider: DailyUsageProvider by lazy {
+        DailyUsageProvider(this)
     }
 }

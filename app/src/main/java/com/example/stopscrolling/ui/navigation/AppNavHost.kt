@@ -29,6 +29,21 @@ import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import com.example.stopscrolling.ui.dashboard.DailyUsageViewModel
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.delay
 
 object Routes {
     const val PERMISSION = "permission"
@@ -74,9 +89,14 @@ fun AppNavHost(
         // ---------- Dashboard Screen ----------
 
         composable(Routes.DASHBOARD) {
+            val context = LocalContext.current
+            val lifecycleOwner = LocalLifecycleOwner.current
 
             val viewModel: DashboardViewModel =
                 viewModel(factory = DashboardViewModel.Factory)
+
+            val dailyUsageViewModel: DailyUsageViewModel =
+                viewModel(factory = DailyUsageViewModel.Factory)
 
             val groups by
             viewModel.groups.collectAsStateWithLifecycle()
@@ -90,9 +110,30 @@ fun AppNavHost(
             val limitUpdateError by
             viewModel.limitUpdateError.collectAsStateWithLifecycle()
 
+            val dailyUsageState by
+            dailyUsageViewModel.uiState.collectAsStateWithLifecycle()
+
+            LaunchedEffect(lifecycleOwner) {
+                lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                    while (true) {
+                        dailyUsageViewModel.refreshUsage()
+                        delay(DailyUsageViewModel.REFRESH_INTERVAL_MILLIS)
+                    }
+                }
+            }
+
             DashboardScreen(
                 groups = groups,
                 pendingChanges = pendingChanges,
+                dailyUsageState = dailyUsageState,
+
+                onOpenUsageSettings = {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
+                    } catch (_: ActivityNotFoundException) {
+                        context.startActivity(Intent(Settings.ACTION_SETTINGS))
+                    }
+                },
 
                 onNewGroupClick = {
                     navController.navigate(Routes.NEW_GROUP)

@@ -96,4 +96,11 @@
     <string name="weekly_limit_with_type">Weekly limit: %1$s (%2$s)</string>
     <string name="pending_weekly_limit_with_type">Pending weekly limit: %1$s (%2$s)</string>
     <string name="pending_weekly_limit_none">Pending weekly limit: No limit</string>
+
+    <!-- Daily usage card (US-27) -->
+    <string name="daily_usage_card_title">Today\'s Screen Time</string>
+    <string name="daily_usage_card_subtitle">Total phone usage today</string>
+    <string name="daily_usage_loading">Loading&#8230;</string>
+    <string name="daily_usage_permission_missing">Usage Access permission was revoked. Re-enable it in Settings to view your daily screen time.</string>
+    <string name="daily_usage_open_settings">Open Settings</string>
 </resources>
