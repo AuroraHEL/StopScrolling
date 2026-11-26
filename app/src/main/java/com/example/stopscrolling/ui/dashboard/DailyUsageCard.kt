@@ -37,7 +37,7 @@ fun DailyUsageCard(
     state: DailyUsageUiState,
     onOpenUsageSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit = {}
+    onClick: (() -> Unit)? = null
 ) {
     if (!state.hasUsagePermission) {
         Card(
@@ -75,36 +75,51 @@ fun DailyUsageCard(
             }
         }
     } else {
-        Card(
-            onClick = onClick,
-            modifier = modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = stringResource(R.string.daily_usage_card_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.semantics { heading() }
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = if (state.isLoading) {
-                        stringResource(R.string.daily_usage_loading)
-                    } else {
-                        formatDuration(state.totalMinutes)
-                    },
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = stringResource(R.string.daily_usage_card_subtitle),
-                    style = MaterialTheme.typography.bodySmall
-                )
+        val cardColors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer,
+            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+        )
+        if (onClick != null) {
+            Card(
+                onClick = onClick,
+                modifier = modifier.fillMaxWidth(),
+                colors = cardColors
+            ) {
+                DailyUsageCardContent(state = state)
+            }
+        } else {
+            Card(
+                modifier = modifier.fillMaxWidth(),
+                colors = cardColors
+            ) {
+                DailyUsageCardContent(state = state)
             }
         }
+    }
+}
+
+@Composable
+private fun DailyUsageCardContent(state: DailyUsageUiState) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = stringResource(R.string.daily_usage_card_title),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.semantics { heading() }
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = if (state.isLoading) {
+                stringResource(R.string.daily_usage_loading)
+            } else {
+                formatDuration(state.totalMinutes)
+            },
+            style = MaterialTheme.typography.headlineMedium
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.daily_usage_card_subtitle),
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 

@@ -1,5 +1,8 @@
 package com.example.stopscrolling.ui.navigation
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.provider.Settings
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -11,7 +14,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -22,28 +28,15 @@ import androidx.navigation.navArgument
 import com.example.stopscrolling.PermissionScreen
 import com.example.stopscrolling.StopScrollingApp
 import com.example.stopscrolling.data.InstalledApp
+import com.example.stopscrolling.ui.dashboard.DailyUsageViewModel
 import com.example.stopscrolling.ui.dashboard.DashboardScreen
 import com.example.stopscrolling.ui.dashboard.DashboardViewModel
 import com.example.stopscrolling.ui.editgroup.EditGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import android.content.ActivityNotFoundException
-import android.content.Intent
-import android.provider.Settings
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import com.example.stopscrolling.ui.dashboard.DailyUsageViewModel
-import kotlinx.coroutines.delay
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.delay
 
 object Routes {
     const val PERMISSION = "permission"

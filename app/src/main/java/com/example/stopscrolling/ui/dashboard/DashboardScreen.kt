@@ -65,7 +65,7 @@ fun DashboardScreen(
     onNewGroupClick: () -> Unit,
     dailyUsageState: DailyUsageUiState = DailyUsageUiState(isLoading = false),
     onOpenUsageSettings: () -> Unit = {},
-    onDailyUsageCardClick: () -> Unit = {},
+    onDailyUsageCardClick: (() -> Unit)? = null,
 
     // US-09: Pending deletions from the database.
     pendingChanges: List<PendingGroupChange> = emptyList(),
