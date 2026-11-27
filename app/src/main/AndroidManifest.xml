@@ -23,6 +23,16 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- SP-02 (spike): Bluetooth. BLUETOOTH is for Android 11 and lower, BLUETOOTH_CONNECT for 12 and higher -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
     <application
         android:name=".StopScrollingApp"
         android:allowBackup="true"
@@ -47,6 +57,24 @@
             </intent-filter>
 
         </activity>
+
+        <!-- SP-02 (spike): own icon "BT Spike" for the Bluetooth test screen -->
+        <activity
+            android:name=".bluetooth.BluetoothSpikeActivity"
+            android:exported="true"
+            android:label="BT Spike"
+            android:theme="@style/Theme.StopScrolling">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- SP-02 (spike): the partner phone waits for requests -->
+        <service
+            android:name=".bluetooth.PartnerListenerService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
 
         <service
             android:name=".usage.UsageMonitorService"
