@@ -36,6 +36,8 @@ import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
 import com.example.stopscrolling.ui.onboarding.CapabilitySelectionScreen
 import com.example.stopscrolling.ui.onboarding.CapabilitySelectionViewModel
+import com.example.stopscrolling.ui.settings.SettingsScreen
+import com.example.stopscrolling.ui.settings.SettingsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -44,6 +46,7 @@ object Routes {
     const val PERMISSION = "permission"
     const val CAPABILITY_SELECTION = "capability_selection"
     const val DASHBOARD = "dashboard"
+    const val SETTINGS = "settings"
     const val NEW_GROUP = "new_group"
     const val EDIT_GROUP = "edit_group/{groupId}"
 
@@ -164,6 +167,10 @@ fun AppNavHost(
                     )
                 },
 
+                onSettingsClick = {
+                    navController.navigate(Routes.SETTINGS)
+                },
+
                 onUpdateLimit = viewModel::updateLimit,
 
                 isUpdatingLimit = isUpdatingLimit,
@@ -172,6 +179,21 @@ fun AppNavHost(
 
                 onClearLimitUpdateError =
                     viewModel::clearLimitUpdateError
+            )
+        }
+
+        // ---------- Settings Screen ----------
+
+        composable(Routes.SETTINGS) {
+
+            val viewModel: SettingsViewModel =
+                viewModel(factory = SettingsViewModel.Factory)
+
+            SettingsScreen(
+                viewModel = viewModel,
+                onBack = {
+                    navController.popBackStack()
+                }
             )
         }
 
