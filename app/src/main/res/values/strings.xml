@@ -40,6 +40,12 @@
     <string name="saving">Saving...</string>
     <string name="limit_update_error">Could not save changes. Please try again.</string>
 
+    <!-- Pending limit changes (US-15) -->
+    <string name="pending_limit_with_type">Pending limit: %1$s (%2$s)</string>
+    <string name="pending_limit_no_limit">Pending limit: No limit</string>
+    <string name="pending_takes_effect">Takes effect tomorrow at 00:00</string>
+    <string name="hard_limit_change_notice">This group has a hard limit, so your changes take effect tomorrow at 00:00. Until then, the current limit stays active.</string>
+
     <string name="math_quiz_title">Solve to Unlock +%1$dm</string>
     <string name="math_quiz_subtitle">Enter the correct answer to extend your limit by %1$d minutes.</string>
     <string name="your_answer">Your answer</string>
@@ -72,6 +78,31 @@
     </plurals>
     <string name="overlay_challenge_placeholder">The math challenge is coming soon.</string>
 
+    <!-- US-13: weekly limit -->
+    <string name="weekly_time_limit">Weekly time limit (optional)</string>
+    <string name="weekly_limit_hint">The week starts on Monday at 00:00. The weekly limit uses the same type (hard or soft) as the daily limit.</string>
+    <string name="weekly_hours">Hours</string>
+    <string name="weekly_minutes">Minutes</string>
+    <string name="weekly_limit_error_empty">Enter a weekly limit</string>
+    <string name="weekly_limit_error_not_positive">The weekly limit must be greater than 0</string>
+    <string name="weekly_limit_error_too_long">The weekly limit cannot be more than 168 hours</string>
+    <string name="weekly_limit_error_below_daily">The weekly limit cannot be lower than the daily limit</string>
+    <string name="overlay_hard_title_weekly">Weekly limit reached</string>
+    <string name="overlay_hard_message_weekly">You reached your weekly limit of %1$s for %2$s. These apps are blocked until Monday.</string>
+    <string name="overlay_soft_title_weekly">Weekly soft limit reached</string>
+    <string name="overlay_soft_message_weekly">You used %1$s this week in %2$s, and your weekly limit was %3$s. Do you really want to keep going?</string>
+
+    <!-- US-13: weekly limit on the group card -->
+    <string name="weekly_limit_with_type">Weekly limit: %1$s (%2$s)</string>
+    <string name="pending_weekly_limit_with_type">Pending weekly limit: %1$s (%2$s)</string>
+    <string name="pending_weekly_limit_none">Pending weekly limit: No limit</string>
+
+    <!-- Daily usage card (US-27) -->
+    <string name="daily_usage_card_title">Today\'s Screen Time</string>
+    <string name="daily_usage_card_subtitle">Total phone usage today</string>
+    <string name="daily_usage_loading">Loading&#8230;</string>
+    <string name="daily_usage_permission_missing">Usage Access permission was revoked. Re-enable it in Settings to view your daily screen time.</string>
+    <string name="daily_usage_open_settings">Open Settings</string>
 
     <!-- US-03: Capability selection onboarding -->
     <string name="capability_selection_title">Choose your capabilities</string>

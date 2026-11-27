@@ -38,4 +38,86 @@ class DayBoundaryTest {
         assertNotEquals(startBefore, startAfter)
         assertEquals(midnight, startAfter)
     }
+
+    @Test
+    fun startOfNextDay_isMidnightOfTheFollowingDay() {
+        val afternoon = timeOf(16, 15, 30, 45)
+
+        val next = DayBoundary.startOfNextDayMillis(afternoon, zone)
+
+        assertEquals(timeOf(17, 0, 0, 0), next)
+    }
+
+    @Test
+    fun startOfNextDay_atMidnight_isTheNextMidnight() {
+        val midnight = timeOf(17, 0, 0, 0)
+
+        val next = DayBoundary.startOfNextDayMillis(midnight, zone)
+
+        assertEquals(timeOf(18, 0, 0, 0), next)
+    }
+
+    @Test
+    fun startOfNextDay_atTheEndOfTheMonth_isTheFirstOfTheNextMonth() {
+        val evening = timeOf(30, 22, 0, 0)
+
+        val next = DayBoundary.startOfNextDayMillis(evening, zone)
+
+        val calendar = Calendar.getInstance(zone)
+        calendar.set(2026, Calendar.DECEMBER, 1, 0, 0, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        assertEquals(calendar.timeInMillis, next)
+    }
+
+    @Test
+    fun startOfNextDay_whenTheClocksGoBack_stillStartsAtMidnight() {
+        // On 25 October 2026 the clocks in Helsinki go back, so this day has 25 hours
+        val noon = Calendar.getInstance(zone)
+        noon.set(2026, Calendar.OCTOBER, 25, 12, 0, 0)
+        noon.set(Calendar.MILLISECOND, 0)
+        val expected = Calendar.getInstance(zone)
+        expected.set(2026, Calendar.OCTOBER, 26, 0, 0, 0)
+        expected.set(Calendar.MILLISECOND, 0)
+
+        val next = DayBoundary.startOfNextDayMillis(noon.timeInMillis, zone)
+
+        assertEquals(expected.timeInMillis, next)
+    }
+
+    @Test
+    fun startOfPreviousDay_isMidnightOfYesterday() {
+        val afternoon = timeOf(17, 15, 30, 45)
+
+        val previous = DayBoundary.startOfPreviousDayMillis(afternoon, zone)
+
+        assertEquals(timeOf(16, 0, 0, 0), previous)
+    }
+
+    @Test
+    fun startOfPreviousDay_onFirstOfMonth_isLastDayOfPreviousMonth() {
+        val firstOfDecember = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.DECEMBER, 1, 0, 5, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val previous = DayBoundary.startOfPreviousDayMillis(firstOfDecember, zone)
+
+        assertEquals(timeOf(30, 0, 0, 0), previous)
+    }
+
+    @Test
+    fun startOfPreviousDay_afterClocksGoBack_stillStartsAtMidnight() {
+        val dayAfterDst = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.OCTOBER, 26, 0, 1, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val expected = Calendar.getInstance(zone).apply {
+            set(2026, Calendar.OCTOBER, 25, 0, 0, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val previous = DayBoundary.startOfPreviousDayMillis(dayAfterDst, zone)
+
+        assertEquals(expected, previous)
+    }
 }

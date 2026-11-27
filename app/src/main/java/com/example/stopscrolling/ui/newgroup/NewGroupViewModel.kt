@@ -11,6 +11,8 @@ import com.example.stopscrolling.data.InstalledApp
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
+import com.example.stopscrolling.util.WeeklyLimitError
+import com.example.stopscrolling.util.WeeklyLimitValidator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +29,12 @@ data class NewGroupUiState(
     // US-12/17: Limit settings
     val timeLimit: Int = 0,
     val limitType: LimitType = LimitType.HARD,
+
+    // US-13: optional weekly limit, typed in hours and minutes
+    val weeklyEnabled: Boolean = false,
+    val weeklyHoursText: String = "",
+    val weeklyMinutesText: String = "",
+    val weeklyLimitError: WeeklyLimitError? = null,
 
     val isLoading: Boolean = true,
     val nameError: Boolean = false,
@@ -89,16 +97,49 @@ class NewGroupViewModel(
         }
     }
 
+    // US-13: the three functions below change the weekly limit fields.
+    // Typing in a field removes the error message.
+    fun onWeeklyEnabledChange(enabled: Boolean) {
+        _uiState.update {
+            it.copy(weeklyEnabled = enabled, weeklyLimitError = null)
+        }
+    }
+
+    fun onWeeklyHoursChange(text: String) {
+        _uiState.update {
+            it.copy(weeklyHoursText = text, weeklyLimitError = null)
+        }
+    }
+
+    fun onWeeklyMinutesChange(text: String) {
+        _uiState.update {
+            it.copy(weeklyMinutesText = text, weeklyLimitError = null)
+        }
+    }
+
     fun onSaveClick() {
         val state = _uiState.value
         val nameInvalid = state.name.isBlank()
         val appsInvalid = state.selectedPackages.isEmpty()
 
-        if (nameInvalid || appsInvalid) {
+        // US-13: 0 means "no weekly limit". When the switch is on, the fields must be valid.
+        val weeklyMinutes: Int? = if (state.weeklyEnabled) {
+            WeeklyLimitValidator.parseMinutes(state.weeklyHoursText, state.weeklyMinutesText)
+        } else {
+            0
+        }
+        val weeklyError: WeeklyLimitError? = if (state.weeklyEnabled) {
+            WeeklyLimitValidator.validate(weeklyMinutes, state.timeLimit)
+        } else {
+            null
+        }
+
+        if (nameInvalid || appsInvalid || weeklyError != null) {
             _uiState.update {
                 it.copy(
                     nameError = nameInvalid,
-                    appsError = appsInvalid
+                    appsError = appsInvalid,
+                    weeklyLimitError = weeklyError
                 )
             }
             return
@@ -109,7 +150,8 @@ class NewGroupViewModel(
                 name = state.name,
                 packageNames = state.selectedPackages.toList(),
                 timeLimit = state.timeLimit,
-                limitType = state.limitType
+                limitType = state.limitType,
+                weeklyLimit = weeklyMinutes ?: 0
             )
 
             _uiState.update {

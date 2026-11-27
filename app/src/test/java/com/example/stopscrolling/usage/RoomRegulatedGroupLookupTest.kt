@@ -66,4 +66,18 @@ class RoomRegulatedGroupLookupTest {
         assertEquals(45, result.timeLimitMinutes)
         assertEquals(LimitType.SOFT, result.limitType)
     }
+
+    // US-13
+    @Test
+    fun groupCarriesItsWeeklyLimit() = runBlocking {
+        val weekly = GroupWithApps(
+            group = AppGroup(id = 4, name = "News", timeLimit = 30, weeklyLimit = 300),
+            apps = listOf(GroupApp(id = 400, groupId = 4, packageName = "app.n"))
+        )
+        val lookup = RoomRegulatedGroupLookup { flowOf(listOf(weekly)) }
+
+        val result = lookup.findGroupsOf("app.n").single()
+
+        assertEquals(300, result.weeklyLimitMinutes)
+    }
 }

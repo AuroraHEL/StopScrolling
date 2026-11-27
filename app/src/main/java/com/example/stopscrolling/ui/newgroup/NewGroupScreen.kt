@@ -230,6 +230,19 @@ fun NewGroupScreen(
 
             Spacer(Modifier.height(16.dp))
 
+            // US-13: optional weekly limit
+            WeeklyLimitSection(
+                enabled = state.weeklyEnabled,
+                hoursText = state.weeklyHoursText,
+                minutesText = state.weeklyMinutesText,
+                error = state.weeklyLimitError,
+                onEnabledChange = viewModel::onWeeklyEnabledChange,
+                onHoursChange = viewModel::onWeeklyHoursChange,
+                onMinutesChange = viewModel::onWeeklyMinutesChange
+            )
+
+            Spacer(Modifier.height(16.dp))
+
             // Select Apps
             Text(
                 text = stringResource(R.string.select_apps),
