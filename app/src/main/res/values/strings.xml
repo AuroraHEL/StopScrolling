@@ -103,4 +103,20 @@
     <string name="daily_usage_loading">Loading&#8230;</string>
     <string name="daily_usage_permission_missing">Usage Access permission was revoked. Re-enable it in Settings to view your daily screen time.</string>
     <string name="daily_usage_open_settings">Open Settings</string>
+
+    <!-- US-03: Capability selection onboarding -->
+    <string name="capability_selection_title">Choose your capabilities</string>
+    <string name="capability_selection_description">Choose which activities you are able to do. StopScrolling will use your preferences to offer suitable challenges.</string>
+
+    <string name="capability_can_walk">I can walk</string>
+    <string name="capability_walk_description">Complete walking challenges to earn extra screen time.</string>
+
+    <string name="capability_can_do_math">I can do mental arithmetic</string>
+    <string name="capability_math_description">Solve math challenges to earn extra screen time.</string>
+
+    <string name="capability_change_later">You can change these preferences later in Settings.</string>
+    <string name="capability_continue">Continue</string>
+    <string name="capability_error">Something went wrong. Please try again.</string>
+    <string name="capability_retry">Retry</string>
+
 </resources>

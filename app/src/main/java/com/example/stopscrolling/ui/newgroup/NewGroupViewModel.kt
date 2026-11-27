@@ -13,6 +13,7 @@ import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
 import com.example.stopscrolling.util.WeeklyLimitError
 import com.example.stopscrolling.util.WeeklyLimitValidator
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,7 +45,9 @@ data class NewGroupUiState(
 
 class NewGroupViewModel(
     private val groupRepository: AppGroupRepository,
-    private val installedAppsRepository: InstalledAppsRepository
+    private val installedAppsRepository: InstalledAppsRepository,
+    // Injectable so that tests can replace Dispatchers.IO with a test dispatcher
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(NewGroupUiState())
@@ -56,7 +59,7 @@ class NewGroupViewModel(
 
     private fun loadApps() {
         viewModelScope.launch {
-            val apps = withContext(Dispatchers.IO) {
+            val apps = withContext(ioDispatcher) {
                 installedAppsRepository.getInstalledApps()
                     .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
             }

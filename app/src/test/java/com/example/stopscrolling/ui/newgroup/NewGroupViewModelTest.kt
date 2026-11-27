@@ -42,9 +42,12 @@ class NewGroupViewModelTest {
             installedAppsRepository.getInstalledApps()
         ).thenReturn(emptyList())
 
+        // Use the test dispatcher instead of Dispatchers.IO, otherwise the
+        // loading coroutine can finish after resetMain() and crash the next test
         viewModel = NewGroupViewModel(
             groupRepository,
-            installedAppsRepository
+            installedAppsRepository,
+            testDispatcher
         )
     }
 

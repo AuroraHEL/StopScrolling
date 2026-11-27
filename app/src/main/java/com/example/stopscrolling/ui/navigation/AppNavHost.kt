@@ -34,12 +34,15 @@ import com.example.stopscrolling.ui.dashboard.DashboardViewModel
 import com.example.stopscrolling.ui.editgroup.EditGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupScreen
 import com.example.stopscrolling.ui.newgroup.NewGroupViewModel
+import com.example.stopscrolling.ui.onboarding.CapabilitySelectionScreen
+import com.example.stopscrolling.ui.onboarding.CapabilitySelectionViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 object Routes {
     const val PERMISSION = "permission"
+    const val CAPABILITY_SELECTION = "capability_selection"
     const val DASHBOARD = "dashboard"
     const val NEW_GROUP = "new_group"
     const val EDIT_GROUP = "edit_group/{groupId}"
@@ -68,7 +71,9 @@ fun AppNavHost(
             ) {
                 PermissionScreen(
                     onPermissionGranted = {
-                        navController.navigate(Routes.DASHBOARD) {
+                        navController.navigate(
+                            Routes.CAPABILITY_SELECTION
+                        ) {
                             popUpTo(Routes.PERMISSION) {
                                 inclusive = true
                             }
@@ -77,6 +82,27 @@ fun AppNavHost(
                     }
                 )
             }
+        }
+
+        // ---------- Capability Selection Screen ----------
+
+        composable(Routes.CAPABILITY_SELECTION) {
+            val viewModel: CapabilitySelectionViewModel =
+                viewModel(
+                    factory = CapabilitySelectionViewModel.Factory
+                )
+
+            CapabilitySelectionScreen(
+                viewModel = viewModel,
+                onCompleted = {
+                    navController.navigate(Routes.DASHBOARD) {
+                        popUpTo(Routes.CAPABILITY_SELECTION) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+            )
         }
 
         // ---------- Dashboard Screen ----------
