@@ -127,6 +127,35 @@ class CapabilitySelectionViewModelTest {
     }
 
     @Test
+    fun `the last enabled challenge cannot be turned off`() = runTest {
+        viewModel = CapabilitySelectionViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.setCanWalk(false)
+        viewModel.setCanDoMentalArithmetic(false)
+
+        // Refused: math stays enabled and a message is shown
+        assertTrue(viewModel.uiState.value.preferences.canDoMentalArithmetic)
+        assertFalse(viewModel.uiState.value.preferences.canWalk)
+        assertTrue(viewModel.uiState.value.showNoChallengeMessage)
+    }
+
+    @Test
+    fun `the message disappears after a valid change`() = runTest {
+        viewModel = CapabilitySelectionViewModel(repository)
+        advanceUntilIdle()
+
+        viewModel.setCanWalk(false)
+        viewModel.setCanDoMentalArithmetic(false)
+        assertTrue(viewModel.uiState.value.showNoChallengeMessage)
+
+        viewModel.setCanWalk(true)
+
+        assertFalse(viewModel.uiState.value.showNoChallengeMessage)
+        assertTrue(viewModel.uiState.value.preferences.canWalk)
+    }
+
+    @Test
     fun `saving failure updates error state`() = runTest {
         viewModel = CapabilitySelectionViewModel(repository)
         advanceUntilIdle()
