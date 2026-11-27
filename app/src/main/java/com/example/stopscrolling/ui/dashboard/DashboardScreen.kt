@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -27,6 +28,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -67,6 +69,9 @@ fun DashboardScreen(
     onOpenUsageSettings: () -> Unit = {},
     onDailyUsageCardClick: (() -> Unit)? = null,
 
+    // US-03: opens the Settings screen
+    onSettingsClick: () -> Unit = {},
+
     // US-09: Pending deletions from the database.
     pendingChanges: List<PendingGroupChange> = emptyList(),
 
@@ -89,6 +94,15 @@ fun DashboardScreen(
             TopAppBar(
                 title = {
                     Text(stringResource(R.string.app_name))
+                },
+                actions = {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription =
+                                stringResource(R.string.settings_title)
+                        )
+                    }
                 }
             )
         }

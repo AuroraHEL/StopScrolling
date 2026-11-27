@@ -67,7 +67,7 @@ class OverlayContentIntegrationTest {
                     request = request(LimitType.SOFT),
                     onGoHome = {},
                     onExtensionGranted = {},
-                    challengeContent = { _, _ ->
+                    challengeContent = { _, _, _ ->
                         Text("Test Math Challenge")
                     }
                 )
@@ -95,7 +95,7 @@ class OverlayContentIntegrationTest {
                     request = request(LimitType.SOFT),
                     onGoHome = {},
                     onExtensionGranted = {},
-                    challengeContent = { _, onCancel ->
+                    challengeContent = { _, _, onCancel ->
                         Button(onClick = onCancel) {
                             Text("Cancel Test Challenge")
                         }
@@ -132,7 +132,7 @@ class OverlayContentIntegrationTest {
                     onExtensionGranted = {
                         extensionGranted++
                     },
-                    challengeContent = { onSolved, _ ->
+                    challengeContent = { _, onSolved, _ ->
                         Button(onClick = onSolved) {
                             Text("Solve Test Challenge")
                         }

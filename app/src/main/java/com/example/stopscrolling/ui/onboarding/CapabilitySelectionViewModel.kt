@@ -20,7 +20,9 @@ data class CapabilitySelectionUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isCompleted: Boolean = false,
-    val hasError: Boolean = false
+    val hasError: Boolean = false,
+    // US-03: true when the user tried to turn off the last enabled challenge
+    val showNoChallengeMessage: Boolean = false
 )
 
 class CapabilitySelectionViewModel(
@@ -68,29 +70,35 @@ class CapabilitySelectionViewModel(
     }
 
     fun setCanWalk(enabled: Boolean) {
-        _uiState.update {
-            if (it.isLoading || it.isSaving || it.isCompleted) {
-                it
-            } else {
-                it.copy(
-                    preferences = it.preferences.copy(
-                        canWalk = enabled
-                    )
-                )
-            }
-        }
+        change { it.withCanWalk(enabled) }
     }
 
     fun setCanDoMentalArithmetic(enabled: Boolean) {
-        _uiState.update {
-            if (it.isLoading || it.isSaving || it.isCompleted) {
-                it
+        change { it.withCanDoMentalArithmetic(enabled) }
+    }
+
+    /**
+     * Applies a change to the preferences.
+     * [transform] returns null when the change would disable every challenge:
+     * then the choice is refused and a message is shown (US-03).
+     */
+    private fun change(
+        transform: (CapabilityPreferences) -> CapabilityPreferences?
+    ) {
+        _uiState.update { state ->
+            if (state.isLoading || state.isSaving || state.isCompleted) {
+                state
             } else {
-                it.copy(
-                    preferences = it.preferences.copy(
-                        canDoMentalArithmetic = enabled
+                val updated = transform(state.preferences)
+
+                if (updated == null) {
+                    state.copy(showNoChallengeMessage = true)
+                } else {
+                    state.copy(
+                        preferences = updated,
+                        showNoChallengeMessage = false
                     )
-                )
+                }
             }
         }
     }
@@ -101,7 +109,8 @@ class CapabilitySelectionViewModel(
         if (
             currentState.isLoading ||
             currentState.isSaving ||
-            currentState.isCompleted
+            currentState.isCompleted ||
+            !currentState.preferences.hasEnabledChallenge()
         ) return
 
         _uiState.update {

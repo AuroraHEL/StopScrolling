@@ -10,6 +10,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.stopscrolling.R
@@ -77,6 +80,19 @@ fun CapabilitySelectionScreen(
             onCheckedChange = viewModel::setCanDoMentalArithmetic
         )
 
+        if (uiState.showNoChallengeMessage) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Read by screen readers as soon as it appears
+            Text(
+                text = stringResource(R.string.capability_at_least_one),
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics {
+                    liveRegion = LiveRegionMode.Polite
+                }
+            )
+        }
+
         Spacer(modifier = Modifier.height(24.dp))
 
         Text(
@@ -120,8 +136,9 @@ fun CapabilitySelectionScreen(
     }
 }
 
+/** One capability card with a switch. Also used by the Settings screen. */
 @Composable
-private fun CapabilityOption(
+internal fun CapabilityOption(
     title: String,
     description: String,
     checked: Boolean,

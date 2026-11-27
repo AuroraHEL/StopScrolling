@@ -17,6 +17,9 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.example.stopscrolling.MainActivity
 import com.example.stopscrolling.StopScrollingApp
+import com.example.stopscrolling.challenge.ChallengeRegistry
+import com.example.stopscrolling.challenge.ChallengeType
+import com.example.stopscrolling.data.CapabilityPreferences
 import com.example.stopscrolling.hasUsageStatsPermission
 import com.example.stopscrolling.overlay.OverlayManager
 import com.example.stopscrolling.ui.overlay.OverlayContent
@@ -30,6 +33,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
@@ -464,6 +468,15 @@ class UsageMonitorService : Service() {
         // has five minutes or less remaining.
         checkHardLimitWarnings(states)
 
+        // US-03: read before going to the main thread, so that showing
+        // the overlay stays one step that nothing can interrupt
+        val availableChallenges =
+            if (decision != null && decision.group.limitType == LimitType.SOFT) {
+                loadAvailableChallenges()
+            } else {
+                emptyList()
+            }
+
         withContext(Dispatchers.Main) {
 
             if (decision == null) {
@@ -472,15 +485,35 @@ class UsageMonitorService : Service() {
 
             } else {
 
-                showOverlayNow(decision)
+                showOverlayNow(decision, availableChallenges)
             }
         }
 
         return result.nextCheckInMillis
     }
 
+    /**
+     * US-03: challenges the user can do right now, read when the overlay is shown.
+     * If the saved preferences cannot be read, all challenges stay enabled.
+     */
+    private suspend fun loadAvailableChallenges(): List<ChallengeType> {
+        val app = application as StopScrollingApp
+
+        val preferences = try {
+            app.capabilityPreferencesRepository.preferences.first()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Cannot read the capability preferences", e)
+            CapabilityPreferences()
+        }
+
+        return ChallengeRegistry.availableChallenges(preferences)
+    }
+
     private fun showOverlayNow(
-        decision: BlockDecision
+        decision: BlockDecision,
+        availableChallenges: List<ChallengeType>
     ) {
 
         val group = decision.group
@@ -519,24 +552,30 @@ class UsageMonitorService : Service() {
                     request = request,
                     onGoHome = ::onOverlayGoHome,
                     onExtensionGranted = ::onExtensionGranted,
-                    challengeContent = { onSolved, onCancel ->
+                    availableChallenges = availableChallenges,
+                    challengeContent = { type, onSolved, onCancel ->
 
-                        MathQuizDialog(
-                            onDismiss = onCancel,
-                            onQuizSolved = {
+                        when (type) {
+                            ChallengeType.MATH -> MathQuizDialog(
+                                onDismiss = onCancel,
+                                onQuizSolved = {
 
-                                serviceScope.launch {
+                                    serviceScope.launch {
 
-                                    (application as StopScrollingApp)
-                                        .extensionRepository
-                                        .grantExtension(
-                                            groupId = request.groupId
-                                        )
+                                        (application as StopScrollingApp)
+                                            .extensionRepository
+                                            .grantExtension(
+                                                groupId = request.groupId
+                                            )
 
-                                    onSolved()
+                                        onSolved()
+                                    }
                                 }
-                            }
-                        )
+                            )
+
+                            // US-20 adds the walking challenge here
+                            ChallengeType.WALKING -> Unit
+                        }
                     }
                 )
             }

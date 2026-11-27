@@ -118,5 +118,20 @@
     <string name="capability_continue">Continue</string>
     <string name="capability_error">Something went wrong. Please try again.</string>
     <string name="capability_retry">Retry</string>
+    <string name="capability_at_least_one">At least one challenge must stay enabled. Turn on another one before turning this one off.</string>
+
+    <!-- US-03: Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_challenges_title">Challenges</string>
+    <string name="settings_challenges_description">Choose which challenges you can do to get extra time. Your changes are saved automatically.</string>
+    <string name="settings_save_error">Could not save your choice. Please try again.</string>
+
+    <!-- US-03: Challenge choice on the soft limit overlay -->
+    <string name="challenge_choice_title">Choose a challenge</string>
+    <string name="challenge_choice_message">Complete one challenge to get more time.</string>
+    <string name="challenge_math_option">Solve a math problem</string>
+    <string name="challenge_walking_option">Walk some steps</string>
+    <string name="challenge_none_title">No challenge available</string>
+    <string name="challenge_none_message">None of your enabled challenges can be used right now. You can change them in Settings.</string>
 
 </resources>

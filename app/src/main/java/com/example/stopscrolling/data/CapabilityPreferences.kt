@@ -14,4 +14,20 @@ data class CapabilityPreferences(
     fun hasEnabledChallenge(): Boolean {
         return canWalk || canDoMentalArithmetic
     }
+
+    /**
+     * Copy with [canWalk] changed, or null if the change would leave
+     * no challenge enabled (US-03: at least one challenge must stay available).
+     */
+    fun withCanWalk(enabled: Boolean): CapabilityPreferences? {
+        return copy(canWalk = enabled).takeIf { it.hasEnabledChallenge() }
+    }
+
+    /**
+     * Same as [withCanWalk], for the mental arithmetic capability.
+     */
+    fun withCanDoMentalArithmetic(enabled: Boolean): CapabilityPreferences? {
+        return copy(canDoMentalArithmetic = enabled)
+            .takeIf { it.hasEnabledChallenge() }
+    }
 }

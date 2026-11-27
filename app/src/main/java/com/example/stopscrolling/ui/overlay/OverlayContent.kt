@@ -22,6 +22,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.example.stopscrolling.R
+import com.example.stopscrolling.challenge.ChallengeType
 import com.example.stopscrolling.data.LimitKind
 import com.example.stopscrolling.data.LimitType
 
@@ -39,6 +40,8 @@ data class OverlayRequest(
 /**
  * Picks the right screen: hard lock, or soft limit screen with the extension challenge.
  * [onExtensionGranted] must be called by the challenge once the extension is saved (US-19).
+ * [availableChallenges] comes from the ChallengeRegistry (US-03): with one challenge it
+ * starts at once, with more the user chooses, with none a message is shown.
  */
 @Composable
 fun OverlayContent(
@@ -46,9 +49,13 @@ fun OverlayContent(
     onGoHome: () -> Unit,
     onExtensionGranted: () -> Unit,
     modifier: Modifier = Modifier,
-    // Malak replaces this default with the math quiz (US-19)
-    challengeContent: @Composable (onSolved: () -> Unit, onCancel: () -> Unit) -> Unit =
-        { _, onCancel -> ChallengePlaceholder(onCancel) }
+    availableChallenges: List<ChallengeType> = listOf(ChallengeType.MATH),
+    // The caller draws the screen of each challenge (math quiz, later the walking one)
+    challengeContent: @Composable (
+        type: ChallengeType,
+        onSolved: () -> Unit,
+        onCancel: () -> Unit
+    ) -> Unit = { _, _, onCancel -> ChallengePlaceholder(onCancel) }
 ) {
     when (request.limitType) {
         LimitType.HARD -> HardLockScreen(
@@ -61,7 +68,12 @@ fun OverlayContent(
         LimitType.SOFT -> {
             var showChallenge by remember(request.groupId, request.limitKind) { mutableStateOf(false) }
             if (showChallenge) {
-                challengeContent(onExtensionGranted, { showChallenge = false })
+                ChallengeFlow(
+                    availableChallenges = availableChallenges,
+                    onSolved = onExtensionGranted,
+                    onCancel = { showChallenge = false },
+                    challengeContent = challengeContent
+                )
             } else {
                 SoftLimitScreen(
                     groupName = request.groupName,
@@ -74,6 +86,41 @@ fun OverlayContent(
                 )
             }
         }
+    }
+}
+
+/**
+ * What happens after "get more time" (US-03):
+ * no challenge -> message, one -> it starts at once, several -> the user chooses.
+ */
+@Composable
+private fun ChallengeFlow(
+    availableChallenges: List<ChallengeType>,
+    onSolved: () -> Unit,
+    onCancel: () -> Unit,
+    challengeContent: @Composable (
+        type: ChallengeType,
+        onSolved: () -> Unit,
+        onCancel: () -> Unit
+    ) -> Unit
+) {
+    var chosen by remember { mutableStateOf<ChallengeType?>(null) }
+    val current = chosen
+
+    when {
+        availableChallenges.isEmpty() -> NoChallengeAvailableScreen(onBack = onCancel)
+
+        availableChallenges.size == 1 ->
+            challengeContent(availableChallenges.first(), onSolved, onCancel)
+
+        current == null -> ChallengeChoiceScreen(
+            challenges = availableChallenges,
+            onChoose = { chosen = it },
+            onCancel = onCancel
+        )
+
+        // Cancelling a challenge returns to the choice
+        else -> challengeContent(current, onSolved, { chosen = null })
     }
 }
 
