@@ -22,6 +22,7 @@ import com.example.stopscrolling.challenge.ChallengeType
 import com.example.stopscrolling.data.CapabilityPreferences
 import com.example.stopscrolling.hasUsageStatsPermission
 import com.example.stopscrolling.overlay.OverlayManager
+import com.example.stopscrolling.permission.AndroidChallengePermissionChecker
 import com.example.stopscrolling.ui.overlay.OverlayContent
 import com.example.stopscrolling.ui.overlay.OverlayRequest
 import com.example.stopscrolling.ui.theme.StopScrollingTheme
@@ -495,6 +496,7 @@ class UsageMonitorService : Service() {
     /**
      * US-03: challenges the user can do right now, read when the overlay is shown.
      * If the saved preferences cannot be read, all challenges stay enabled.
+     * US-04: a challenge whose permission is missing is not offered.
      */
     private suspend fun loadAvailableChallenges(): List<ChallengeType> {
         val app = application as StopScrollingApp
@@ -508,7 +510,13 @@ class UsageMonitorService : Service() {
             CapabilityPreferences()
         }
 
-        return ChallengeRegistry.availableChallenges(preferences)
+        // US-04: read again every time, the user may have revoked a permission
+        val permissionChecker = AndroidChallengePermissionChecker(this)
+
+        return ChallengeRegistry.availableChallenges(
+            preferences = preferences,
+            isPermissionGranted = permissionChecker::isGranted
+        )
     }
 
     private fun showOverlayNow(

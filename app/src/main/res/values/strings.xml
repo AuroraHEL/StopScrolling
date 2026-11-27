@@ -126,6 +126,17 @@
     <string name="settings_challenges_description">Choose which challenges you can do to get extra time. Your changes are saved automatically.</string>
     <string name="settings_save_error">Could not save your choice. Please try again.</string>
 
+    <!-- US-04: Walking permission -->
+    <string name="permission_walking_dialog_title">Allow step counting?</string>
+    <string name="permission_walking_dialog_message">The walking challenge counts your steps with the phone\'s motion sensor. For this, Android asks for access to your physical activity. StopScrolling only counts steps while you do the challenge.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_not_now">Not now</string>
+    <string name="permission_walking_needed">The walking challenge needs permission to count your steps. It stays unavailable until you allow it.</string>
+    <string name="permission_walking_denied">Permission denied. The walking challenge is not available, but your other challenges still work.</string>
+    <string name="permission_allow">Allow</string>
+    <string name="permission_try_again">Try again</string>
+    <string name="permission_open_app_settings">Open app settings</string>
+
     <!-- US-03: Challenge choice on the soft limit overlay -->
     <string name="challenge_choice_title">Choose a challenge</string>
     <string name="challenge_choice_message">Complete one challenge to get more time.</string>
