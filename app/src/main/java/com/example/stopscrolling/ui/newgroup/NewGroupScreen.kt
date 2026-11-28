@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.InstalledApp
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.ui.components.AppSearchField
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -257,6 +258,15 @@ fun NewGroupScreen(
                 )
             }
 
+            Spacer(Modifier.height(8.dp))
+
+            // US-07: search field above the list
+            AppSearchField(
+                query = state.searchQuery,
+                onQueryChange = viewModel::onSearchQueryChange,
+                enabled = !state.isLoading
+            )
+
             if (state.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -264,12 +274,18 @@ fun NewGroupScreen(
                 ) {
                     CircularProgressIndicator()
                 }
+            } else if (state.searchQuery.isNotBlank() && state.visibleApps.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.search_no_results),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f)
                 ) {
                     items(
-                        state.apps,
+                        state.visibleApps,
                         key = { it.packageName }
                     ) { app ->
                         AppCheckRow(

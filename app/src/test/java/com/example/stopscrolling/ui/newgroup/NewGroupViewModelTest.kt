@@ -1,6 +1,8 @@
 package com.example.stopscrolling.ui.newgroup
 
+import android.graphics.drawable.Drawable
 import com.example.stopscrolling.data.GroupWithApps
+import com.example.stopscrolling.data.InstalledApp
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.PendingGroupChange
 import com.example.stopscrolling.data.repository.AppGroupRepository
@@ -326,6 +328,180 @@ class NewGroupViewModelTest {
             viewModel.onWeeklyHoursChange("5")
 
             assertNull(viewModel.uiState.value.weeklyLimitError)
+        }
+
+    // ---------- US-07: search in the app list ----------
+
+    private fun app(name: String, packageName: String) =
+        InstalledApp(name, packageName, Mockito.mock(Drawable::class.java))
+
+    // Creates a ViewModel that loads the given apps and waits until they are loaded
+    private fun createViewModelWithApps(vararg apps: InstalledApp): NewGroupViewModel {
+        Mockito.`when`(
+            installedAppsRepository.getInstalledApps()
+        ).thenReturn(apps.toList())
+
+        val newViewModel = NewGroupViewModel(
+            groupRepository,
+            installedAppsRepository,
+            testDispatcher
+        )
+        testDispatcher.scheduler.advanceUntilIdle()
+
+        return newViewModel
+    }
+
+    @Test
+    fun initialState_hasEmptySearchAndShowsAllApps() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Maps", "com.maps"),
+                app("Chrome", "com.chrome")
+            )
+
+            assertEquals("", vm.uiState.value.searchQuery)
+
+            // The list is alphabetical
+            assertEquals(
+                listOf("Chrome", "Maps"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+        }
+
+    @Test
+    fun onSearchQueryChange_showsOnlyAppsWithMatchingName() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Maps", "com.maps"),
+                app("Instagram", "com.instagram.android"),
+                app("Chrome", "com.chrome")
+            )
+
+            vm.onSearchQueryChange("insta")
+
+            assertEquals(
+                listOf("Instagram"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+
+            // The full list of installed apps does not change
+            assertEquals(3, vm.uiState.value.apps.size)
+        }
+
+    @Test
+    fun onSearchQueryChange_ignoresUpperAndLowerCase() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Instagram", "com.instagram.android"),
+                app("Chrome", "com.chrome")
+            )
+
+            vm.onSearchQueryChange("CHROME")
+
+            assertEquals(
+                listOf("Chrome"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+        }
+
+    @Test
+    fun onSearchQueryChange_withNoMatch_showsEmptyList() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Instagram", "com.instagram.android")
+            )
+
+            vm.onSearchQueryChange("xyz")
+
+            assertTrue(vm.uiState.value.visibleApps.isEmpty())
+        }
+
+    @Test
+    fun clearingSearch_restoresAlphabeticalList() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Maps", "com.maps"),
+                app("Instagram", "com.instagram.android"),
+                app("Chrome", "com.chrome")
+            )
+
+            // "a" is in "Instagram" and in "Maps", not in "Chrome"
+            vm.onSearchQueryChange("a")
+
+            assertEquals(
+                listOf("Instagram", "Maps"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+
+            vm.onSearchQueryChange("")
+
+            assertEquals(
+                listOf("Chrome", "Instagram", "Maps"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+        }
+
+    @Test
+    fun search_keepsCheckedApps() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Instagram", "com.instagram.android"),
+                app("Chrome", "com.chrome")
+            )
+
+            vm.onAppToggle("com.instagram.android")
+
+            // Instagram is hidden by the search, but it is still checked
+            vm.onSearchQueryChange("chrome")
+
+            assertEquals(
+                setOf("com.instagram.android"),
+                vm.uiState.value.selectedPackages
+            )
+
+            // After clearing the search, Instagram is in the list and still checked
+            vm.onSearchQueryChange("")
+
+            assertEquals(
+                listOf("Chrome", "Instagram"),
+                vm.uiState.value.visibleApps.map { it.name }
+            )
+            assertEquals(
+                setOf("com.instagram.android"),
+                vm.uiState.value.selectedPackages
+            )
+        }
+
+    @Test
+    fun onSaveClick_savesCheckedAppsAlsoWhenTheSearchHidesThem() =
+        runTest(testDispatcher) {
+
+            val vm = createViewModelWithApps(
+                app("Instagram", "com.instagram.android"),
+                app("Chrome", "com.chrome")
+            )
+
+            vm.onNameChange("Mixed")
+            vm.onAppToggle("com.instagram.android")
+
+            // The user searches another app and checks it
+            vm.onSearchQueryChange("chrome")
+            vm.onAppToggle("com.chrome")
+
+            vm.onSaveClick()
+            runCurrent()
+
+            assertEquals(1, groupRepository.saveCount)
+            assertEquals(
+                setOf("com.instagram.android", "com.chrome"),
+                groupRepository.savedPackages.toSet()
+            )
         }
 
     // ---------- Fake Repository ----------

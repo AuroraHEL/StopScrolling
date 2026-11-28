@@ -17,6 +17,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.example.stopscrolling.R
 import com.example.stopscrolling.data.InstalledApp
 import com.example.stopscrolling.data.LimitType
+import com.example.stopscrolling.ui.components.AppSearchField
+import com.example.stopscrolling.util.AppSearchFilter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +41,16 @@ fun EditGroupScreen(
 
     var selectedPackages by remember(groupId) {
         mutableStateOf(initialPackages.toSet())
+    }
+
+    // US-07: text typed in the search field and the apps that match it.
+    // The checked apps stay in selectedPackages, also when the search hides them.
+    var searchQuery by remember(groupId) {
+        mutableStateOf("")
+    }
+
+    val visibleApps = remember(availableApps, searchQuery) {
+        AppSearchFilter.filterByName(availableApps, searchQuery) { it.name }
     }
 
     var timeLimit by remember(groupId) {
@@ -334,11 +346,28 @@ fun EditGroupScreen(
                 style = MaterialTheme.typography.titleSmall
             )
 
+            Spacer(Modifier.height(8.dp))
+
+            // US-07: search field above the list
+            AppSearchField(
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                enabled = !isSaving
+            )
+
+            if (searchQuery.isNotBlank() && visibleApps.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.search_no_results),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                )
+            }
+
             LazyColumn(
                 modifier = Modifier.weight(1f)
             ) {
                 items(
-                    items = availableApps,
+                    items = visibleApps,
                     key = { it.packageName }
                 ) { app ->
 
