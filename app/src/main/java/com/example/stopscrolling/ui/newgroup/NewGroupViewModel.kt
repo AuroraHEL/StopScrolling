@@ -11,6 +11,7 @@ import com.example.stopscrolling.data.InstalledApp
 import com.example.stopscrolling.data.LimitType
 import com.example.stopscrolling.data.repository.AppGroupRepository
 import com.example.stopscrolling.data.repository.InstalledAppsRepository
+import com.example.stopscrolling.util.AppSearchFilter
 import com.example.stopscrolling.util.WeeklyLimitError
 import com.example.stopscrolling.util.WeeklyLimitValidator
 import kotlinx.coroutines.CoroutineDispatcher
@@ -27,6 +28,9 @@ data class NewGroupUiState(
     val apps: List<InstalledApp> = emptyList(),
     val selectedPackages: Set<String> = emptySet(),
 
+    // US-07: text typed in the search field
+    val searchQuery: String = "",
+
     // US-12/17: Limit settings
     val timeLimit: Int = 0,
     val limitType: LimitType = LimitType.HARD,
@@ -41,7 +45,12 @@ data class NewGroupUiState(
     val nameError: Boolean = false,
     val appsError: Boolean = false,
     val saved: Boolean = false
-)
+) {
+    // US-07: apps shown in the list. The checked apps are saved in selectedPackages,
+    // so a search does not remove them (also when they are hidden by the search).
+    val visibleApps: List<InstalledApp>
+        get() = AppSearchFilter.filterByName(apps, searchQuery) { it.name }
+}
 
 class NewGroupViewModel(
     private val groupRepository: AppGroupRepository,
@@ -83,6 +92,13 @@ class NewGroupViewModel(
                 state.selectedPackages + packageName
             }
             state.copy(selectedPackages = selection, appsError = false)
+        }
+    }
+
+    // US-07: the list is filtered every time the text changes
+    fun onSearchQueryChange(query: String) {
+        _uiState.update {
+            it.copy(searchQuery = query)
         }
     }
 

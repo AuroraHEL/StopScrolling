@@ -6,6 +6,9 @@
     <string name="group_name_error">Please enter a name</string>
     <string name="select_apps">Select the apps to regulate</string>
     <string name="select_apps_error">Select at least one app</string>
+    <string name="search_apps">Search apps</string>
+    <string name="search_clear">Clear search</string>
+    <string name="search_no_results">No apps match your search</string>
     <string name="save">Save</string>
     <string name="back">Back</string>
     <string name="overlay_permission_rationale">StopScrolling needs permission to display over other apps so it can show the lock screen when your time limit is up.</string>
